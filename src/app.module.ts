@@ -6,6 +6,6 @@ import { RealTimeModule } from './real_time/real_time.module';
 @Module({
   imports: [RealTimeModule],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, PrismaService],
 })
 export class AppModule {}
