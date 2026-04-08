@@ -1,9 +1,28 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { PrismaModule } from './prisma/prisma.module';
+import { AiModule } from './ai/ai.module';
+import { BranchesModule } from './branches/branches.module';
+import { StudiesModule } from './studies/studies.module';
+import { CheckinModule } from './checkin/checkin.module';
+import { WaitingModule } from './waiting/waiting.module';
+import { SurveyModule } from './survey/survey.module';
+import { ResultsModule } from './results/results.module';
 
 @Module({
-  imports: [],
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    PrismaModule,
+    AiModule,
+    BranchesModule,
+    StudiesModule,
+    CheckinModule,
+    WaitingModule,
+    SurveyModule,
+    ResultsModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })
