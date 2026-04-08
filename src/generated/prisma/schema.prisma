@@ -1,7 +1,7 @@
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["partialIndexes"]
-  output   = "../src/generated/prisma" 
+  output          = "../src/generated/prisma"
 }
 
 datasource db {
