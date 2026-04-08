@@ -3,6 +3,8 @@ import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
+import { AuthModule } from './auth/auth.module';
+import { AppointmentsModule } from './appointments/appointments.module';
 import { AiModule } from './ai/ai.module';
 import { BranchesModule } from './branches/branches.module';
 import { StudiesModule } from './studies/studies.module';
@@ -15,6 +17,8 @@ import { ResultsModule } from './results/results.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
+    AuthModule,
+    AppointmentsModule,
     AiModule,
     BranchesModule,
     StudiesModule,
