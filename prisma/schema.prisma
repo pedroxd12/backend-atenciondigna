@@ -18,6 +18,8 @@ model ciudades {
   sucursales  sucursales[]
 }
 
+
+
 model cola_atencion {
   id                      BigInt                   @id @default(autoincrement())
   id_sucursal             Int

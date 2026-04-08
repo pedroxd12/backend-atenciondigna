@@ -18,14 +18,14 @@ import { StudyType } from "./enums/index";
 export class OrchestatorController {
   constructor(private readonly orchestatorService: OrchestatorService) {}
 
-  /** Registrar una nueva visita con sus estudios */
+
   @Post("visit")
   @HttpCode(HttpStatus.CREATED)
   registerVisit(@Body() dto: RegisterVisitDto) {
     return this.orchestatorService.registerVisit(dto);
   }
 
-  /** Obtener el estado de una visita */
+  
   @Get("visit/:visitId")
   getVisit(@Param("visitId") visitId: string) {
     const visit = this.orchestatorService.getVisit(visitId);
@@ -33,7 +33,7 @@ export class OrchestatorController {
     return visit;
   }
 
-  /** Marcar un estudio como completado y desbloquear dependientes */
+
   @Patch("visit/:visitId/complete/:studyType")
   completeStudy(
     @Param("visitId") visitId: string,
@@ -49,13 +49,13 @@ export class OrchestatorController {
     }
   }
 
-  /** Resumen de todas las colas (cantidad de pacientes por estudio) */
+
   @Get("queues")
   getQueueSummary() {
     return this.orchestatorService.getQueueSummary();
   }
 
-  /** Detalle de la cola de un tipo de estudio específico */
+
   @Get("queues/:studyType")
   getQueue(@Param("studyType") studyType: StudyType) {
     if (!Object.values(StudyType).includes(studyType)) {

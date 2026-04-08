@@ -16,25 +16,13 @@ import { CreateReservacionDto } from "./dto/create-reservacion.dto";
 export class CitasController {
   constructor(private readonly citasService: CitasService) {}
 
-  /* ------------------------------------------------------------------ */
-  /*  Pacientes                                                          */
-  /* ------------------------------------------------------------------ */
-
-  /**
-   * POST /citas/pacientes
-   * Registra un nuevo paciente. Si ya existe un perfil asociado al
-   * firebase_uid proporcionado, devuelve el registro existente.
-   */
   @Post("pacientes")
   @HttpCode(HttpStatus.CREATED)
   registrarPaciente(@Body() dto: CreatePacienteDto) {
     return this.citasService.registrarPaciente(dto);
   }
 
-  /**
-   * POST /citas/reservaciones
-   * Crea una reservación con uno o más estudios para un paciente registrado.
-   */
+
   @Post("reservaciones")
   @HttpCode(HttpStatus.CREATED)
   crearReservacion(@Body() dto: CreateReservacionDto) {

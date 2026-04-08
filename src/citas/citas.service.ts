@@ -19,9 +19,7 @@ export class CitasService {
 
   constructor(private readonly qrService: QrService) {}
 
-  /* ------------------------------------------------------------------ */
-  /*  Pacientes — MOCK                                                   */
-  /* ------------------------------------------------------------------ */
+
 
   async registrarPaciente(dto: CreatePacienteDto) {
     const id = crypto.randomUUID();
@@ -42,9 +40,6 @@ export class CitasService {
     };
   }
 
-  /* ------------------------------------------------------------------ */
-  /*  Reservaciones — MOCK                                               */
-  /* ------------------------------------------------------------------ */
 
   async crearReservacion(dto: CreateReservacionDto) {
     const folio = ++folioCounter;
@@ -68,9 +63,6 @@ export class CitasService {
     };
   }
 
-  /* ------------------------------------------------------------------ */
-  /*  Vista móvil QR — MOCK                                              */
-  /* ------------------------------------------------------------------ */
 
   async getReservacionQrView(id: bigint): Promise<ReservacionQrResponseDto> {
     this.logger.log(`[MOCK] Generando QR para folio=${id}`);
