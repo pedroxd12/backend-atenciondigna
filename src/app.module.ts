@@ -2,9 +2,11 @@ import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { RealTimeModule } from './real_time/real_time.module';
+import { OrchestatorModule } from './orchestator/orchestator.module';
+import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
-  imports: [RealTimeModule],
+  imports: [PrismaModule, RealTimeModule, OrchestatorModule],
   controllers: [AppController],
   providers: [AppService],
 })
