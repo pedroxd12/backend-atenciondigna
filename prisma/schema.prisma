@@ -1,10 +1,10 @@
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["partialIndexes"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model ciudades {
@@ -31,7 +31,7 @@ model cola_atencion {
   reservaciones_servicios reservaciones_servicios  @relation(fields: [id_reservacion_srv], references: [id], onDelete: NoAction, onUpdate: NoAction)
   sucursales              sucursales               @relation(fields: [id_sucursal], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
-  @@unique([id_sucursal, id_estudio, posicion], map: "idx_cola_posicion", where: raw("((estado)::text = 'activo'::text)"))
+  @@index([id_sucursal, id_estudio, posicion], map: "idx_cola_posicion")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
