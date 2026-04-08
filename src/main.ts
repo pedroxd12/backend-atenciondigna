@@ -27,9 +27,11 @@ async function bootstrap() {
     }),
   );
 
-  const port = process.env.PORT ?? 3000;
-  await app.listen(port);
+  // Railway / Docker: SIEMPRE bindear a 0.0.0.0 sino el healthcheck externo
+  // no llega al contenedor (por default Nest escucha solo en localhost).
+  const port = Number(process.env.PORT ?? 3000);
+  await app.listen(port, '0.0.0.0');
   // eslint-disable-next-line no-console
-  console.log(`Backend NestJS escuchando en http://localhost:${port}`);
+  console.log(`Backend NestJS escuchando en 0.0.0.0:${port}`);
 }
 bootstrap();
