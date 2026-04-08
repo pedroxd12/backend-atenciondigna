@@ -1,4 +1,4 @@
-import { StudyType, VisitType } from '../enums/index';
+import { StudyType, VisitType } from "../enums/index";
 
 export class StudyRequestDto {
   /** Tipo de estudio solicitado */
@@ -22,7 +22,7 @@ export class RegisterVisitDto {
   declare age: number;
 
   /** Género del paciente */
-  declare gender: 'M' | 'F';
+  declare gender: "M" | "F";
 
   /** Identificador de la sucursal */
   declare branchId: string;

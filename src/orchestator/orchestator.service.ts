@@ -1,22 +1,22 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { randomUUID } from 'crypto';
+import { Injectable, Logger } from "@nestjs/common";
+import { randomUUID } from "crypto";
 import {
   StudyType,
   TriagePriority,
   VisitType,
   StudyStatus,
-} from './enums/index';
-import type { RegisterVisitDto } from './dto/register-visit.dto';
+} from "./enums/index";
+import type { RegisterVisitDto } from "./dto/register-visit.dto";
 import type {
   OrchestratorResultDto,
   AssignedStudyDto,
-} from './dto/orchestrator-result.dto';
+} from "./dto/orchestrator-result.dto";
 import {
   resolveStudyOrder,
   getStudyDependencies,
   PREPARATION_MAP,
-} from './rules/dependency.rules';
-import { validateVisit } from './rules/validation.rules';
+} from "./rules/dependency.rules";
+import { validateVisit } from "./rules/validation.rules";
 
 /* ------------------------------------------------------------------ */
 /*  Tipos internos del orquestador                                     */
@@ -73,7 +73,7 @@ export class OrchestatorService {
     // 1. Validar reglas de negocio
     const validationErrors = validateVisit(dto);
     const hasBlockingErrors = validationErrors.some(
-      (e) => e.severity === 'ERROR',
+      (e) => e.severity === "ERROR",
     );
 
     // 2. Calcular prioridad de triage

@@ -1,8 +1,8 @@
-import { StudyType } from '../enums/index';
+import { StudyType } from "../enums/index";
 import type {
   RegisterVisitDto,
   StudyRequestDto,
-} from '../dto/register-visit.dto';
+} from "../dto/register-visit.dto";
 
 /* ------------------------------------------------------------------ */
 /*  Reglas de dependencia entre estudios                               */
@@ -20,22 +20,22 @@ export const DEPENDENCY_RULES: DependencyRule[] = [
   {
     first: StudyType.PAPANICOLAOU,
     then: StudyType.VAGINAL_CULTURE,
-    reason: 'Prioridad en la toma de muestra.',
+    reason: "Prioridad en la toma de muestra.",
   },
   {
     first: StudyType.PAPANICOLAOU,
     then: StudyType.VPH,
-    reason: 'Prioridad en la toma de muestra.',
+    reason: "Prioridad en la toma de muestra.",
   },
   {
     first: StudyType.PAPANICOLAOU,
     then: StudyType.TRANSVAGINAL_ULTRASOUND,
-    reason: 'Evitar interferencia en la muestra.',
+    reason: "Evitar interferencia en la muestra.",
   },
   {
     first: StudyType.DENSITOMETRY,
     then: StudyType.TOMOGRAPHY,
-    reason: 'Solo si el estudio de imagen usa contraste.',
+    reason: "Solo si el estudio de imagen usa contraste.",
     condition: (visit) =>
       visit.studies.some(
         (s) => s.type === StudyType.TOMOGRAPHY && s.usesContrast,
@@ -44,14 +44,14 @@ export const DEPENDENCY_RULES: DependencyRule[] = [
   {
     first: StudyType.DENSITOMETRY,
     then: StudyType.MRI,
-    reason: 'Solo si el estudio de imagen usa contraste.',
+    reason: "Solo si el estudio de imagen usa contraste.",
     condition: (visit) =>
       visit.studies.some((s) => s.type === StudyType.MRI && s.usesContrast),
   },
   {
     first: StudyType.LABORATORY,
     then: StudyType.ULTRASOUND,
-    reason: 'Cuando el laboratorio requiere ayuno.',
+    reason: "Cuando el laboratorio requiere ayuno.",
     condition: (visit) => !!visit.labRequiresFasting,
   },
 ];

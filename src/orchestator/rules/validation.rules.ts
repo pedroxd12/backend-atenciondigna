@@ -1,6 +1,6 @@
-import { StudyType } from '../enums/index';
-import type { RegisterVisitDto } from '../dto/register-visit.dto';
-import type { ValidationErrorDto } from '../dto/orchestrator-result.dto';
+import { StudyType } from "../enums/index";
+import type { RegisterVisitDto } from "../dto/register-visit.dto";
+import type { ValidationErrorDto } from "../dto/orchestrator-result.dto";
 
 const SIX_MONTHS_MS = 6 * 30 * 24 * 60 * 60 * 1000;
 const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
@@ -36,10 +36,10 @@ function validateMastography(visit: RegisterVisitDto): ValidationErrorDto[] {
   if (visit.age < 35 && !visit.hasSpecialistOrder) {
     errors.push({
       studyType: StudyType.MASTOGRAPHY,
-      code: 'MAST_AGE_REQUIRES_ORDER',
+      code: "MAST_AGE_REQUIRES_ORDER",
       message:
-        'Paciente menor de 35 años requiere orden médica de un especialista para mastografía.',
-      severity: 'ERROR',
+        "Paciente menor de 35 años requiere orden médica de un especialista para mastografía.",
+      severity: "ERROR",
     });
   }
 
@@ -50,10 +50,10 @@ function validateMastography(visit: RegisterVisitDto): ValidationErrorDto[] {
     if (now - lastDate < SIX_MONTHS_MS && !visit.hasSpecialistOrder) {
       errors.push({
         studyType: StudyType.MASTOGRAPHY,
-        code: 'MAST_RECURRENCE_REQUIRES_ORDER',
+        code: "MAST_RECURRENCE_REQUIRES_ORDER",
         message:
-          'Se realizó mastografía hace menos de 6 meses. Se requiere orden médica nueva.',
-        severity: 'ERROR',
+          "Se realizó mastografía hace menos de 6 meses. Se requiere orden médica nueva.",
+        severity: "ERROR",
       });
     }
   }
@@ -75,10 +75,10 @@ function validateLaboratory(visit: RegisterVisitDto): ValidationErrorDto[] {
     if (now - collectedAt > TWO_HOURS_MS) {
       errors.push({
         studyType: StudyType.LABORATORY,
-        code: 'LAB_URINE_EXPIRED',
+        code: "LAB_URINE_EXPIRED",
         message:
-          'La muestra de orina excede las 2 horas desde su recolección. No es válida.',
-        severity: 'ERROR',
+          "La muestra de orina excede las 2 horas desde su recolección. No es válida.",
+        severity: "ERROR",
       });
     }
   }
@@ -90,9 +90,9 @@ function validateLaboratory(visit: RegisterVisitDto): ValidationErrorDto[] {
   ) {
     errors.push({
       studyType: StudyType.LABORATORY,
-      code: 'LAB_FASTING_INSUFFICIENT',
+      code: "LAB_FASTING_INSUFFICIENT",
       message: `El paciente no cumple con el ayuno mínimo de ${MIN_FASTING_HOURS} horas requerido para los estudios de laboratorio.`,
-      severity: 'ERROR',
+      severity: "ERROR",
     });
   }
 

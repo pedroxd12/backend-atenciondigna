@@ -1,4 +1,4 @@
-import { Logger } from '@nestjs/common';
+import { Logger } from "@nestjs/common";
 import {
   ConnectedSocket,
   MessageBody,
@@ -8,15 +8,15 @@ import {
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
-} from '@nestjs/websockets';
-import { Namespace, Socket } from 'socket.io';
-import { ResponseEventDto } from './dto/response-event.dto';
+} from "@nestjs/websockets";
+import { Namespace, Socket } from "socket.io";
+import { ResponseEventDto } from "./dto/response-event.dto";
 
 @WebSocketGateway({
-  namespace: '/responses',
+  namespace: "/responses",
   cors: {
-    origin: '*',
-    methods: ['GET', 'POST'],
+    origin: "*",
+    methods: ["GET", "POST"],
     credentials: true,
   },
 })
@@ -29,7 +29,7 @@ export class RealTimeGateway
   private readonly logger = new Logger(RealTimeGateway.name);
 
   afterInit() {
-    this.logger.log('WebSocket gateway inicializado en namespace /responses');
+    this.logger.log("WebSocket gateway inicializado en namespace /responses");
   }
 
   handleConnection(client: Socket) {
@@ -46,7 +46,7 @@ export class RealTimeGateway
    *
    * Emite en el cliente el evento `joined` con el nombre de la sala.
    */
-  @SubscribeMessage('join-case')
+  @SubscribeMessage("join-case")
   handleJoinCase(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: { caseId: string },
@@ -54,13 +54,13 @@ export class RealTimeGateway
     const room = `case:${payload.caseId}`;
     void client.join(room);
     this.logger.log(`${client.id} se unió a la sala ${room}`);
-    client.emit('joined', { room });
+    client.emit("joined", { room });
   }
 
   /**
    * Permite al cliente abandonar la sala de un caso.
    */
-  @SubscribeMessage('leave-case')
+  @SubscribeMessage("leave-case")
   handleLeaveCase(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: { caseId: string },
@@ -68,7 +68,7 @@ export class RealTimeGateway
     const room = `case:${payload.caseId}`;
     void client.leave(room);
     this.logger.log(`${client.id} abandonó la sala ${room}`);
-    client.emit('left', { room });
+    client.emit("left", { room });
   }
 
   /**
@@ -77,7 +77,7 @@ export class RealTimeGateway
    */
   broadcastResponse(dto: ResponseEventDto) {
     const room = `case:${dto.caseId}`;
-    const event = 'response:new';
+    const event = "response:new";
     const payload = {
       ...dto,
       timestamp: dto.timestamp ?? new Date().toISOString(),
