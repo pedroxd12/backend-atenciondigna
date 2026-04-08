@@ -24,8 +24,9 @@ export class AuthService {
   // Registro con email + contrasena
   // ────────────────────────────────────────────────
   async register(dto: RegisterDto): Promise<AuthResponse> {
+    const email = dto.email.trim().toLowerCase();
     const existing = await this.prisma.pacientes.findFirst({
-      where: { email: dto.email },
+      where: { email },
     });
     if (existing) {
       throw new ConflictException('Ya existe una cuenta con ese correo');
@@ -34,7 +35,7 @@ export class AuthService {
     const hash = await bcrypt.hash(dto.password, 10);
     const paciente = await this.prisma.pacientes.create({
       data: {
-        email: dto.email,
+        email,
         nombre: dto.nombre,
         apellido_paterno: dto.apellidoPaterno ?? null,
         apellido_materno: dto.apellidoMaterno ?? null,
@@ -54,8 +55,9 @@ export class AuthService {
   // Login con email + contrasena
   // ────────────────────────────────────────────────
   async login(dto: LoginDto): Promise<AuthResponse> {
+    const email = dto.email.trim().toLowerCase();
     const paciente = await this.prisma.pacientes.findFirst({
-      where: { email: dto.email },
+      where: { email },
     });
     if (!paciente?.password_hash) {
       throw new UnauthorizedException('Credenciales invalidas');
@@ -70,9 +72,10 @@ export class AuthService {
   // Google sign-in (Firebase Auth en el cliente)
   // ────────────────────────────────────────────────
   async googleSignIn(dto: GoogleSignInDto): Promise<AuthResponse> {
+    const email = dto.email.trim().toLowerCase();
     let paciente = await this.prisma.pacientes.findFirst({
       where: {
-        OR: [{ firebase_uid: dto.firebaseUid }, { email: dto.email }],
+        OR: [{ firebase_uid: dto.firebaseUid }, { email }],
       },
     });
 
@@ -81,7 +84,7 @@ export class AuthService {
       paciente = await this.prisma.pacientes.create({
         data: {
           firebase_uid: dto.firebaseUid,
-          email: dto.email,
+          email,
           nombre: nombre || 'Paciente',
           apellido_paterno: rest.join(' ') || null,
         },
@@ -102,6 +105,7 @@ export class AuthService {
     email: string | null;
     nombre: string;
     apellido_paterno: string | null;
+    apellido_materno?: string | null;
   }): AuthResponse {
     const token = this.jwt.sign({
       sub: paciente.id,
@@ -112,7 +116,11 @@ export class AuthService {
       patient: {
         id: paciente.id,
         email: paciente.email ?? '',
-        fullName: [paciente.nombre, paciente.apellido_paterno]
+        fullName: [
+          paciente.nombre,
+          paciente.apellido_paterno,
+          paciente.apellido_materno,
+        ]
           .filter(Boolean)
           .join(' '),
         photoUrl: null,
