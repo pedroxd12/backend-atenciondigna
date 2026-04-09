@@ -11,19 +11,8 @@ import {
   GoogleSignInDto,
   LoginDto,
   RegisterDto,
+  StaffAuthResponse,
 } from './dto/auth.dto';
-
-interface StaffAuthResponse {
-  token: string;
-  id: string;
-  nombre: string;
-  apellido: string;
-  email: string;
-  rol: string;
-  id_estudio_asignado: number | null;
-  estudio?: { id: number | null; nombre: string };
-  sucursal: { id: number; nombre: string };
-}
 
 @Injectable()
 export class AuthService {
