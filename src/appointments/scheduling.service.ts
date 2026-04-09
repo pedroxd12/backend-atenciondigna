@@ -397,6 +397,55 @@ export class SchedulingService {
   // 4) Auto-detect tardanza y reagendar (para checkin)
   // ──────────────────────────────────────────────
   // ──────────────────────────────────────────────
+  // 4.5) Slots disponibles para la app (lista de horarios)
+  // ──────────────────────────────────────────────
+  /**
+   * Devuelve los horarios candidatos del dia (top N) para que el paciente
+   * elija. Cada slot ya tiene tiempo total estimado, orden recomendado,
+   * nivel de saturacion y "razon" (por que es buen slot).
+   */
+  async availableSlots(params: {
+    branchId: number;
+    date: string;
+    studyIds: number[];
+    topN: number;
+  }) {
+    if (!params.studyIds.length) {
+      throw new BadRequestException('studyIds vacio');
+    }
+    const sucursal = await this.ensureBranch(params.branchId);
+    const horaApertura = this.hourFromTime(sucursal.hora_apertura) ?? 7;
+    const horaCierre = this.hourFromTime(sucursal.hora_cierre) ?? 20;
+
+    const propuesta = await this.ai.optimalSlot({
+      id_sucursal: params.branchId,
+      fecha: params.date,
+      estudios: params.studyIds,
+      hora_apertura: horaApertura,
+      hora_cierre: horaCierre,
+      duracion_estimada_min: 45,
+      top_n: params.topN,
+    });
+
+    return {
+      branchId: params.branchId,
+      date: params.date,
+      studyIds: params.studyIds,
+      slots: propuesta.slots.map((s) => ({
+        date: s.fecha,
+        hour: s.hora,
+        time: `${String(s.hora).padStart(2, '0')}:00`,
+        totalEstimatedMin: s.tiempo_total_estimado_min,
+        saturationLevel: s.nivel_saturacion_promedio,
+        score: s.score,
+        reason: s.razon,
+        orderedStudyIds: s.orden_recomendado,
+      })),
+      validations: propuesta.validaciones,
+    };
+  }
+
+  // ──────────────────────────────────────────────
   // 5) Scheduler global de sucursal (in-memory clinic)
   // ──────────────────────────────────────────────
   /**

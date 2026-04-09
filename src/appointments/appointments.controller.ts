@@ -5,6 +5,7 @@ import {
   HttpCode,
   Param,
   Post,
+  Query,
   Sse,
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
@@ -43,6 +44,35 @@ export class AppointmentsController {
   @HttpCode(200)
   smartCreate(@Body() body: CreateSmartAppointmentDto) {
     return this.scheduling.smartCreate(body);
+  }
+
+  /**
+   * Devuelve la lista de horarios disponibles del dia para un paquete
+   * de estudios. Cada horario incluye su tiempo total estimado y nivel
+   * de saturacion calculados por el modelo de IA.
+   *
+   * Query params:
+   *   - branchId
+   *   - date (YYYY-MM-DD)
+   *   - studyIds (CSV: "2,5,11")
+   *   - topN (default 8)
+   */
+  @Get('slots')
+  availableSlots(
+    @Query('branchId') branchId: string,
+    @Query('date') date: string,
+    @Query('studyIds') studyIds: string,
+    @Query('topN') topN?: string,
+  ) {
+    return this.scheduling.availableSlots({
+      branchId: Number(branchId),
+      date,
+      studyIds: studyIds
+        .split(',')
+        .map((s) => Number(s.trim()))
+        .filter((n) => Number.isFinite(n)),
+      topN: topN ? Number(topN) : 8,
+    });
   }
 
   /** Reagenda inteligentemente una reservación existente. */
