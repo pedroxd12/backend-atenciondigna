@@ -694,8 +694,29 @@ export class SchedulingService {
       });
     }
 
-    allSlots.sort((a, b) => a.score - b.score);
+    // Ordenamiento inteligente:
+    // - Si el dia tiene poca carga (< 5 citas), los pacientes quieren ser
+    //   atendidos LO ANTES POSIBLE → ordenar por hora (mas temprano primero).
+    // - Si hay congestion, el score importa → los horarios con menos espera
+    //   y mas capacidad suben al top aunque sean mas tarde.
+    if (totalCitasDia < 5) {
+      // Dia libre: temprano primero, score como desempate
+      allSlots.sort((a, b) => {
+        const timeA = parseInt(a.time) * 60 + parseInt(a.time.split(':')[1]);
+        const timeB = parseInt(b.time) * 60 + parseInt(b.time.split(':')[1]);
+        return timeA - timeB || a.score - b.score;
+      });
+    } else {
+      // Dia con carga: score primero (menor espera gana)
+      allSlots.sort((a, b) => a.score - b.score);
+    }
     const topSlots = allSlots.slice(0, params.topN);
+
+    // El primer slot del resultado es el "Recomendado" cuando esta libre
+    if (topSlots.length > 0 && topSlots[0].citasRegistradas === 0) {
+      topSlots[0].tag = 'Recomendado';
+      topSlots[0].recommended = true;
+    }
 
     return {
       branchId: params.branchId,
