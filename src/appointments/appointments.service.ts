@@ -11,6 +11,16 @@ export class AppointmentsService {
    * Es la accion principal del flujo "solicitar un servicio" en la app.
    */
   async create(dto: CreateAppointmentDto) {
+    if (!dto.patientId) {
+      throw new NotFoundException('patientId es requerido');
+    }
+    if (!dto.branchId) {
+      throw new NotFoundException('branchId es requerido');
+    }
+    if (!dto.studyIds || dto.studyIds.length === 0) {
+      throw new NotFoundException('Al menos un estudio es requerido');
+    }
+
     const paciente = await this.prisma.pacientes.findUnique({
       where: { id: dto.patientId },
     });
