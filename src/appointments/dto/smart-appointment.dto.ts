@@ -1,3 +1,17 @@
+import {
+  IsString,
+  IsNotEmpty,
+  IsInt,
+  IsOptional,
+  IsArray,
+  ArrayMinSize,
+  IsIn,
+  IsBoolean,
+  IsNumber,
+  Matches,
+  ValidateNested,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 import { PacienteContext } from '../../ai/dto/predict.dto';
 
 /**
@@ -8,28 +22,60 @@ import { PacienteContext } from '../../ai/dto/predict.dto';
  * mejor slot considerando saturación, reglas de negocio y prioridad clínica.
  */
 export class CreateSmartAppointmentDto {
+  @IsString()
+  @IsNotEmpty()
   patientId!: string;
+
+  @Type(() => Number)
+  @IsInt()
   branchId!: number;
+
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
   date!: string; // YYYY-MM-DD
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsInt({ each: true })
+  @Type(() => Number)
   studyIds!: number[];
 
-  // Ventana opcional (defaults: horario de la sucursal)
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
   horaApertura?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
   horaCierre?: number;
 
-  // Prioridad clínica del paciente (afecta scoring de slot)
+  @IsOptional()
+  @IsIn(['urgente', 'cita', 'sin_cita'])
   prioridad?: 'urgente' | 'cita' | 'sin_cita';
 
-  // Contexto adicional que dispara reglas (mastografía, orina, etc.)
+  @IsOptional()
   patientContext?: Omit<PacienteContext, 'prioridad'>;
 
-  /** Si false, sólo devuelve la propuesta sin crear la reservación. */
+  @IsOptional()
+  @IsBoolean()
   confirm?: boolean;
 }
 
 export class RescheduleAppointmentDto {
+  @IsIn(['no_show', 'tarde', 'cancelacion', 'saturacion', 'manual'])
   reason!: 'no_show' | 'tarde' | 'cancelacion' | 'saturacion' | 'manual';
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
   minutosRetraso?: number;
+
+  @IsOptional()
+  @IsString()
   nota?: string;
+
+  @IsOptional()
+  @IsBoolean()
   permitirSiguienteDia?: boolean;
 }
