@@ -80,6 +80,7 @@ model estudios {
   predicciones_ia                                                      predicciones_ia[]
   reservaciones_servicios                                              reservaciones_servicios[]
   resultados_estudios                                                  resultados_estudios[]
+  servicios_salud_digna                                                servicios_salud_digna[]
   subestudios                                                          subestudios[]
   sucursales_consultorios                                              sucursales_consultorios[]
 }
@@ -257,6 +258,22 @@ model resultados_estudios {
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model servicios_salud_digna {
+  id                      Int      @id @default(autoincrement())
+  id_estudio              Int
+  nombre                  String   @db.VarChar(250)
+  precio                  Decimal? @db.Decimal(10, 2)
+  es_paquete              Boolean  @default(false)
+  requiere_preparacion    Boolean  @default(false)
+  preparacion_descripcion String?
+  activo                  Boolean  @default(true)
+  created_at              DateTime @default(now()) @db.Timestamptz(6)
+  estudios                estudios @relation(fields: [id_estudio], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([id_estudio, nombre])
+  @@index([id_estudio], map: "idx_servicios_sd_estudio")
+}
+
 model spatial_ref_sys {
   srid      Int     @id
   auth_name String? @db.VarChar(256)

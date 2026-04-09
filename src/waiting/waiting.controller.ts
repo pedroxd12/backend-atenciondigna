@@ -11,6 +11,12 @@ export class WaitingController {
     return this.waiting.current(id);
   }
 
+  /** Cola de pacientes en el estudio actual del paciente. */
+  @Get(':id/espera/cola')
+  queue(@Param('id') id: string) {
+    return this.waiting.queueForPatient(id);
+  }
+
   /** SSE — el cliente Flutter recibe actualizaciones cada 3 s. */
   @Sse(':id/espera/stream')
   stream(@Param('id') id: string): Observable<{ data: WaitStatus }> {

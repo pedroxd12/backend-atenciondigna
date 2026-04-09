@@ -13,6 +13,8 @@ export interface BranchDto {
   address: string;
   lat: number;
   lng: number;
+  /** Mapa interno de la clinica (GeoJSON) — null si no esta capturado en BD. */
+  mapaGeojson: unknown | null;
 }
 
 export interface BranchWithWaitDto extends BranchDto {
@@ -27,6 +29,12 @@ export class BranchesService {
     private readonly prisma: PrismaService,
     private readonly ai: AiService,
   ) {}
+
+  async findById(id: number): Promise<BranchDto | null> {
+    const s = await this.prisma.sucursales.findUnique({ where: { id } });
+    if (!s) return null;
+    return this.toBranchDto(s);
+  }
 
   async list(): Promise<BranchDto[]> {
     const rows = await this.prisma.sucursales.findMany({
@@ -124,11 +132,13 @@ export class BranchesService {
     direccion: string | null;
     latitud: unknown;
     longitud: unknown;
+    mapa_geojson?: unknown;
   }): BranchDto => ({
     id: s.id,
     name: s.nombre,
     address: s.direccion ?? '',
     lat: Number(s.latitud ?? 0),
     lng: Number(s.longitud ?? 0),
+    mapaGeojson: s.mapa_geojson ?? null,
   });
 }

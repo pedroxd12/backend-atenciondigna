@@ -12,6 +12,8 @@ import { CheckinModule } from './checkin/checkin.module';
 import { WaitingModule } from './waiting/waiting.module';
 import { SurveyModule } from './survey/survey.module';
 import { ResultsModule } from './results/results.module';
+import { ServicesModule } from './services/services.module';
+import { MapsModule } from './maps/maps.module';
 
 @Module({
   imports: [
@@ -26,6 +28,8 @@ import { ResultsModule } from './results/results.module';
     WaitingModule,
     SurveyModule,
     ResultsModule,
+    ServicesModule,
+    MapsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

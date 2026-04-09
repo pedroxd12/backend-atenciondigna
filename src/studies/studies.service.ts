@@ -112,6 +112,40 @@ export class StudiesService {
   }
 
   /**
+   * Catalogo completo de estudios activos — fuente unica para selectores
+   * en la app (request_service_page, etc.). Reemplaza listas hardcodeadas.
+   */
+  async getCatalogo(): Promise<
+    {
+      id: number;
+      nombre: string;
+      requierePreparacion: boolean;
+      requiereOrdenMedica: boolean;
+      tiempoEsperaPromedio: number;
+    }[]
+  > {
+    const estudios = await this.prisma.estudios.findMany({
+      where: { activo: true },
+      orderBy: [{ orden_prioridad: 'asc' }, { nombre: 'asc' }],
+      select: {
+        id: true,
+        nombre: true,
+        requiere_preparacion: true,
+        requiere_orden_medica: true,
+        tiempo_espera_promedio_min: true,
+      },
+    });
+
+    return estudios.map((e) => ({
+      id: e.id,
+      nombre: e.nombre,
+      requierePreparacion: e.requiere_preparacion,
+      requiereOrdenMedica: e.requiere_orden_medica,
+      tiempoEsperaPromedio: e.tiempo_espera_promedio_min,
+    }));
+  }
+
+  /**
    * Construye la lista de preparaciones a partir del catalogo. Si la
    * descripcion del estudio contiene texto, se separa por puntos.
    */

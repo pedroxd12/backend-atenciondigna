@@ -12,6 +12,17 @@ import {
   BatchPredictionResponse,
   SaturacionResponse,
   ModelInfoResponse,
+  OptimalSlotDto,
+  OptimalSlotResponse,
+  RescheduleDto,
+  RescheduleResponse,
+  DynamicReorderDto,
+  DynamicReorderResponse,
+  InitClinicDto,
+  RegisterPatientDto,
+  PatientLifecycleDto,
+  GlobalPlanResponse,
+  ClinicSnapshotResponse,
 } from './dto/predict.dto';
 
 /**
@@ -99,6 +110,92 @@ export class AiService {
       method: 'POST',
       body: JSON.stringify(dto),
     });
+  }
+
+  // ──────────────────────────────────────────────
+  // Agenda inteligente
+  // ──────────────────────────────────────────────
+  optimalSlot(dto: OptimalSlotDto): Promise<OptimalSlotResponse> {
+    return this.request<OptimalSlotResponse>('/agenda/optimal-slot', {
+      method: 'POST',
+      body: JSON.stringify(dto),
+    });
+  }
+
+  reschedule(dto: RescheduleDto): Promise<RescheduleResponse> {
+    return this.request<RescheduleResponse>('/agenda/reschedule', {
+      method: 'POST',
+      body: JSON.stringify(dto),
+    });
+  }
+
+  dynamicReorder(dto: DynamicReorderDto): Promise<DynamicReorderResponse> {
+    return this.request<DynamicReorderResponse>('/agenda/dynamic-reorder', {
+      method: 'POST',
+      body: JSON.stringify(dto),
+    });
+  }
+
+  // ──────────────────────────────────────────────
+  // Scheduler global de sucursal (in-memory clinic state)
+  // ──────────────────────────────────────────────
+  initClinic(dto: InitClinicDto): Promise<ClinicSnapshotResponse> {
+    return this.request<ClinicSnapshotResponse>('/scheduler/clinic/init', {
+      method: 'POST',
+      body: JSON.stringify(dto),
+    });
+  }
+
+  advanceClock(idSucursal: number, nowMin: number): Promise<ClinicSnapshotResponse> {
+    const qs = new URLSearchParams({
+      id_sucursal: String(idSucursal),
+      now_min: String(nowMin),
+    });
+    return this.request<ClinicSnapshotResponse>(
+      `/scheduler/clinic/advance?${qs.toString()}`,
+      { method: 'POST' },
+    );
+  }
+
+  registerPatient(dto: RegisterPatientDto): Promise<GlobalPlanResponse> {
+    return this.request<GlobalPlanResponse>('/scheduler/patient/register', {
+      method: 'POST',
+      body: JSON.stringify(dto),
+    });
+  }
+
+  startAttention(dto: PatientLifecycleDto): Promise<GlobalPlanResponse> {
+    return this.request<GlobalPlanResponse>('/scheduler/patient/start', {
+      method: 'POST',
+      body: JSON.stringify(dto),
+    });
+  }
+
+  finishAttention(dto: PatientLifecycleDto): Promise<GlobalPlanResponse> {
+    return this.request<GlobalPlanResponse>('/scheduler/patient/finish', {
+      method: 'POST',
+      body: JSON.stringify(dto),
+    });
+  }
+
+  replanClinic(idSucursal: number): Promise<GlobalPlanResponse> {
+    const qs = new URLSearchParams({ id_sucursal: String(idSucursal) });
+    return this.request<GlobalPlanResponse>(
+      `/scheduler/replan?${qs.toString()}`,
+      { method: 'POST' },
+    );
+  }
+
+  clinicSnapshot(idSucursal: number): Promise<ClinicSnapshotResponse> {
+    return this.request<ClinicSnapshotResponse>(
+      `/scheduler/clinic/${idSucursal}/snapshot`,
+    );
+  }
+
+  clinicPlan(idSucursal: number): Promise<GlobalPlanResponse> {
+    return this.request<GlobalPlanResponse>(
+      `/scheduler/clinic/${idSucursal}/plan`,
+    );
   }
 
   saturacion(

@@ -1,10 +1,12 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { SchedulingService } from '../appointments/scheduling.service';
 
 export interface CheckinPass {
   token: string;
@@ -29,8 +31,12 @@ export class CheckinService {
    * En produccion: tabla `checkin_tokens` con TTL en Redis.
    */
   private readonly tokens = new Map<string, CheckinPass>();
+  private readonly logger = new Logger(CheckinService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly scheduling: SchedulingService,
+  ) {}
 
   async generatePass(input: {
     patientId: string;
@@ -89,6 +95,23 @@ export class CheckinService {
     if (!pass) throw new NotFoundException('Pase no encontrado');
     if (new Date(pass.expiresAt) < new Date()) {
       throw new BadRequestException('Pase expirado');
+    }
+
+    // Auto-detección de tardanza para estudios de puntualidad estricta:
+    // Tomografía/Resonancia. Si aplica, se reagenda y se aborta el check-in.
+    try {
+      const reagendado = await this.scheduling.checkLateAndReschedule(
+        pass.reservationId,
+      );
+      if (reagendado) {
+        this.tokens.delete(token);
+        throw new BadRequestException(
+          `Tu cita fue reagendada automáticamente para ${reagendado.newDate} a las ${reagendado.newTime}: ${reagendado.reason}`,
+        );
+      }
+    } catch (e) {
+      if (e instanceof BadRequestException) throw e;
+      this.logger.warn(`checkLateAndReschedule falló: ${(e as Error).message}`);
     }
 
     await this.prisma.reservaciones.update({
