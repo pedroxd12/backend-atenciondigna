@@ -76,6 +76,29 @@ export class AppointmentsController {
   }
 
   /**
+   * Valida una hora elegida por el paciente y devuelve disponibilidad
+   * por cada servicio/estudio. El paciente elige libremente, el sistema
+   * le dice si es posible y recomienda alternativas.
+   */
+  @Get('check-time')
+  checkTime(
+    @Query('branchId') branchId: string,
+    @Query('date') date: string,
+    @Query('time') time: string,
+    @Query('studyIds') studyIds: string,
+  ) {
+    return this.scheduling.checkTime({
+      branchId: Number(branchId),
+      date,
+      time,
+      studyIds: studyIds
+        .split(',')
+        .map((s) => Number(s.trim()))
+        .filter((n) => Number.isFinite(n)),
+    });
+  }
+
+  /**
    * Walk-in: paciente llega SIN cita. Encuentra el proximo hueco.
    * Query: branchId=46&studyIds=2,5
    */

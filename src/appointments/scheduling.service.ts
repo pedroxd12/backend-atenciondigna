@@ -824,6 +824,297 @@ export class SchedulingService {
     };
   }
 
+  // ──────────────────────────────────────────────
+  // Check-time: valida una hora elegida por el paciente
+  // y devuelve disponibilidad POR SERVICIO.
+  // ──────────────────────────────────────────────
+
+  /**
+   * El paciente elige la hora que quiera. Este metodo le dice:
+   *   - Por cada estudio: si hay consultorio libre, espera estimada,
+   *     y si no hay lugar, la siguiente hora disponible mas cercana.
+   *   - Si el horario es factible o no en conjunto.
+   *   - El horario optimo que el sistema recomienda.
+   */
+  async checkTime(params: {
+    branchId: number;
+    date: string;
+    time: string; // HH:mm
+    studyIds: number[];
+  }) {
+    if (!params.studyIds.length) {
+      throw new BadRequestException('studyIds vacio');
+    }
+    const sucursal = await this.ensureBranch(params.branchId);
+
+    // ── Horario del dia ──
+    const fechaObj = new Date(`${params.date}T00:00:00`);
+    const jsDow = fechaObj.getDay();
+    const dow = (jsDow + 6) % 7;
+    const DIAS = ['lunes','martes','miercoles','jueves','viernes','sabado','domingo'];
+    const diaNombre = DIAS[dow];
+
+    const horarioJson = sucursal.horario_semanal as
+      | Record<string, { open: number; close: number }> | null | undefined;
+    const hdia = horarioJson?.[String(dow)];
+    const horaApertura = hdia?.open ?? (this.hourFromTime(sucursal.hora_apertura) ?? 6);
+    const horaCierre = hdia?.close ?? (this.hourFromTime(sucursal.hora_cierre) ?? 19);
+
+    const base = {
+      branchId: params.branchId,
+      date: params.date,
+      requestedTime: params.time,
+      weeklyHours: { open: horaApertura, close: horaCierre },
+    };
+
+    if (horaApertura >= horaCierre) {
+      return {
+        ...base, feasible: false,
+        reason: `La sucursal no abre los ${diaNombre}.`,
+        studies: [], totalEstimatedMin: 0, orderedStudyIds: [],
+        recommendedSlot: null, validations: [],
+      };
+    }
+
+    // Parsear hora solicitada
+    const [hh, mm] = params.time.split(':').map(Number);
+    const requestedMin = hh * 60 + (mm || 0);
+    const aperturaMin = horaApertura * 60;
+    const cierreMin = horaCierre * 60;
+
+    // Hora actual CDMX
+    const cdmx = nowCDMX();
+    const esHoy = cdmx.dateStr === params.date;
+    const minutosMinHoy = esHoy ? cdmx.hours * 60 + cdmx.minutes + 30 : 0;
+
+    // Datos de estudios
+    const estudiosDB = await this.prisma.estudios.findMany({
+      where: { id: { in: params.studyIds } },
+    });
+    const atencionMap = new Map(estudiosDB.map(e => [e.id, e.tiempo_atencion_promedio_min ?? 10]));
+    const esperaMap = new Map(estudiosDB.map(e => [e.id, e.tiempo_espera_promedio_min ?? 20]));
+    const prepMap = new Map(estudiosDB.map(e => [e.id, e.requiere_preparacion]));
+    const prepHorasMap = new Map(estudiosDB.map(e => [e.id, e.preparacion_horas_min ?? 0]));
+    const nameMap = new Map(estudiosDB.map(e => [e.id, e.nombre]));
+    const tiempoAtencionTotal = params.studyIds.reduce((a, id) => a + (atencionMap.get(id) ?? 10), 0);
+
+    // Restriccion de preparacion
+    const maxPrepHoras = Math.max(0, ...params.studyIds.map(id => prepHorasMap.get(id) ?? 0));
+    const horaLimitePrep = maxPrepHoras >= 6
+      ? (horaApertura + 4) * 60
+      : Infinity;
+
+    // Orden recomendado
+    const sinPrep = params.studyIds.filter(id => !prepMap.get(id));
+    const conPrep = params.studyIds.filter(id => prepMap.get(id));
+    const ordenOptimo = [...sinPrep, ...conPrep];
+    const SECUENCIAS: [number, number][] = [[1,11],[1,12],[4,6],[4,24],[4,56],[2,6]];
+    for (let iter = 0; iter < 8; iter++) {
+      let changed = false;
+      for (const [p, s] of SECUENCIAS) {
+        const i1 = ordenOptimo.indexOf(p);
+        const i2 = ordenOptimo.indexOf(s);
+        if (i1 >= 0 && i2 >= 0 && i1 > i2) {
+          ordenOptimo.splice(i1, 1);
+          ordenOptimo.splice(i2, 0, p);
+          changed = true;
+        }
+      }
+      if (!changed) break;
+    }
+
+    // Validaciones
+    const validaciones: Array<{ regla: string; severidad: string; mensaje: string; accion?: string }> = [];
+    if (maxPrepHoras >= 6) {
+      validaciones.push({
+        regla: 'preparacion.ayuno', severidad: 'warning',
+        mensaje: `Uno de tus estudios requiere ayuno de ${maxPrepHoras} horas. Solo puedes agendar entre ${horaApertura}:00 y ${Math.floor(horaLimitePrep / 60)}:00.`,
+        accion: 'Asegurate de no comer ni beber (excepto agua) desde la noche anterior.',
+      });
+    }
+
+    // Consultorios
+    const consultorios = await this.prisma.sucursales_consultorios.findMany({
+      where: { id_sucursal: params.branchId, activo: true },
+    });
+    const capMap = new Map(consultorios.map(c => [c.id_estudio, c.cantidad]));
+
+    // Ocupacion del dia
+    const fechaStart = new Date(`${params.date}T00:00:00Z`);
+    const fechaEnd = new Date(`${params.date}T23:59:59Z`);
+    const citasDelDia = await this.prisma.reservaciones.findMany({
+      where: {
+        id_sucursal: params.branchId,
+        fecha_programada: { gte: fechaStart, lte: fechaEnd },
+        estado: { in: ['pendiente', 'confirmada', 'en_proceso'] },
+      },
+      include: { reservaciones_servicios: true },
+    });
+    const ocupacionPorEstudio = new Map<number, Array<{ inicio: number; fin: number }>>();
+    for (const id of params.studyIds) ocupacionPorEstudio.set(id, []);
+    for (const r of citasDelDia) {
+      const horaCita = r.hora_programada
+        ? new Date(r.hora_programada).getUTCHours() * 60 +
+          new Date(r.hora_programada).getUTCMinutes()
+        : 8 * 60;
+      for (const s of r.reservaciones_servicios) {
+        const arr = ocupacionPorEstudio.get(s.id_estudio);
+        if (arr) {
+          const dur = atencionMap.get(s.id_estudio) ?? 10;
+          arr.push({ inicio: horaCita, fin: horaCita + dur });
+        }
+      }
+    }
+    const ocupadosEn = (idEstudio: number, minuto: number): number => {
+      const arr = ocupacionPorEstudio.get(idEstudio) ?? [];
+      const dur = atencionMap.get(idEstudio) ?? 10;
+      return arr.filter(c => c.inicio < minuto + dur && c.fin > minuto).length;
+    };
+
+    // ── Validar viabilidad basica ──
+    if (requestedMin < aperturaMin || requestedMin >= cierreMin) {
+      return {
+        ...base, feasible: false,
+        reason: `La sucursal abre de ${horaApertura}:00 a ${horaCierre}:00.`,
+        studies: [], totalEstimatedMin: 0, orderedStudyIds: ordenOptimo,
+        recommendedSlot: null, validations: validaciones,
+      };
+    }
+    if (esHoy && requestedMin < minutosMinHoy) {
+      return {
+        ...base, feasible: false,
+        reason: `Esa hora ya paso. Elige a partir de las ${fmtMin(minutosMinHoy)}.`,
+        studies: [], totalEstimatedMin: 0, orderedStudyIds: ordenOptimo,
+        recommendedSlot: null, validations: validaciones,
+      };
+    }
+    if (requestedMin > horaLimitePrep) {
+      return {
+        ...base, feasible: false,
+        reason: `Uno de tus estudios requiere ayuno. Solo puedes agendar antes de las ${fmtMin(horaLimitePrep)}.`,
+        studies: [], totalEstimatedMin: 0, orderedStudyIds: ordenOptimo,
+        recommendedSlot: null, validations: validaciones,
+      };
+    }
+
+    // El paciente debe poder terminar antes del cierre
+    if (requestedMin + tiempoAtencionTotal > cierreMin) {
+      return {
+        ...base, feasible: false,
+        reason: `No alcanza a terminar todos tus estudios (~${tiempoAtencionTotal} min) antes del cierre (${horaCierre}:00).`,
+        studies: [], totalEstimatedMin: 0, orderedStudyIds: ordenOptimo,
+        recommendedSlot: null, validations: validaciones,
+      };
+    }
+
+    // ── Per-study availability ──
+    let minutoActual = requestedMin;
+    let allAvailable = true;
+    let totalWait = 0;
+    const studiesResult: Array<{
+      studyId: number; studyName: string; available: boolean;
+      waitMin: number; serviceMin: number; saturationLevel: string;
+      suggestedTime: string | null; roomsTotal: number; roomsOccupied: number;
+    }> = [];
+
+    for (const id of ordenOptimo) {
+      const cap = capMap.get(id) ?? 1;
+      const ocu = ocupadosEn(id, minutoActual);
+      const libre = Math.max(0, cap - ocu);
+      const available = libre > 0;
+      const serviceDur = atencionMap.get(id) ?? 10;
+
+      // Espera IA
+      let espera = 0;
+      try {
+        const pred = await this.ai.predict({
+          id_sucursal: params.branchId,
+          id_estudio: id,
+          hora: Math.floor(minutoActual / 60),
+          dia_semana: dow,
+          pacientes_en_cola: ocu,
+          consultorios_activos: cap,
+        });
+        espera = Math.round(pred.tiempo_espera_pred_min);
+      } catch {
+        const baseW = esperaMap.get(id) ?? 20;
+        espera = Math.round(ocu > 0 ? baseW * (1 + ocu * 0.15) : baseW * 0.5);
+      }
+      totalWait += espera;
+
+      let nivel: string = 'bajo';
+      if (espera > 40) nivel = 'critico';
+      else if (espera > 25) nivel = 'alto';
+      else if (espera > 12) nivel = 'medio';
+
+      // Si no hay lugar, buscar la proxima hora disponible
+      let suggestedTime: string | null = null;
+      if (!available) {
+        allAvailable = false;
+        for (let scan = minutoActual + 5; scan <= cierreMin; scan += 5) {
+          const scanOcu = ocupadosEn(id, scan);
+          if (cap - scanOcu > 0) {
+            suggestedTime = fmtMin(scan);
+            break;
+          }
+        }
+      }
+
+      studiesResult.push({
+        studyId: id,
+        studyName: nameMap.get(id) ?? `Estudio ${id}`,
+        available,
+        waitMin: espera,
+        serviceMin: serviceDur,
+        saturationLevel: nivel,
+        suggestedTime,
+        roomsTotal: cap,
+        roomsOccupied: ocu,
+      });
+
+      minutoActual += serviceDur;
+    }
+
+    // ── Horario recomendado (el mejor slot) ──
+    let recommendedSlot: {
+      time: string; waitMin: number; totalEstimatedMin: number;
+      saturationLevel: string; reason: string;
+    } | null = null;
+    try {
+      const best = await this.availableSlots({
+        branchId: params.branchId,
+        date: params.date,
+        studyIds: params.studyIds,
+        topN: 1,
+      });
+      if (best.slots.length > 0) {
+        const s = best.slots[0];
+        recommendedSlot = {
+          time: s.time,
+          waitMin: s.waitMin,
+          totalEstimatedMin: s.totalEstimatedMin,
+          saturationLevel: s.saturationLevel,
+          reason: s.reason,
+        };
+      }
+    } catch {
+      // Si falla, no pasa nada — el recomendado es opcional
+    }
+
+    return {
+      ...base,
+      feasible: allAvailable,
+      reason: allAvailable
+        ? undefined
+        : 'Uno o mas estudios no tienen consultorio disponible a esa hora.',
+      studies: studiesResult,
+      totalEstimatedMin: totalWait + tiempoAtencionTotal,
+      orderedStudyIds: ordenOptimo,
+      recommendedSlot,
+      validations: validaciones,
+    };
+  }
+
   /**
    * Walk-in: un paciente llega SIN cita. Encuentra el proximo hueco
    * disponible desde AHORA MISMO.
