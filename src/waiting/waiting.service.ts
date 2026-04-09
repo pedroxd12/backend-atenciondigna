@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { Observable, from, interval, switchMap } from 'rxjs';
+import { Observable, from, interval, switchMap, pairwise, tap, startWith } from 'rxjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { levelFromMinutes, SaturationLevel } from '../common/saturation';
+import { NotificationsService } from '../common/notifications.service';
 
 export interface WaitStatus {
   currentStudy: string;
@@ -37,7 +38,13 @@ export interface QueueItem {
 
 @Injectable()
 export class WaitingService {
-  constructor(private readonly prisma: PrismaService) {}
+  /** Track de pacientes ya notificados para no repetir push. */
+  private readonly notifiedTurns = new Set<string>();
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   /**
    * Estado en vivo del paciente: el siguiente estudio en su lista de
@@ -195,10 +202,23 @@ export class WaitingService {
     return `A${String(n).padStart(4, '0')}`;
   }
 
-  /** SSE — cada 3s relee el estado del paciente desde la BD. */
+  /** SSE — cada 3s relee el estado del paciente desde la BD.
+   *  Cuando detecta que es el turno del paciente, envía push notification. */
   stream(patientId: string): Observable<{ data: WaitStatus }> {
     return interval(3000).pipe(
-      switchMap(() => from(this.current(patientId).then((data) => ({ data })))),
+      switchMap(() => from(this.current(patientId))),
+      tap((status) => {
+        if (status.isYourTurn && status.hasActiveService) {
+          const key = `${patientId}:${status.currentStudy}`;
+          if (!this.notifiedTurns.has(key)) {
+            this.notifiedTurns.add(key);
+            this.notifications
+              .notifyTurnReady(patientId, status.area || status.currentStudy)
+              .catch(() => {});
+          }
+        }
+      }),
+      switchMap((data) => from(Promise.resolve({ data }))),
     );
   }
 }

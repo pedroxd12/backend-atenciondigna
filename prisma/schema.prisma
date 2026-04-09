@@ -23,6 +23,7 @@ model cola_atencion {
   id_consultorio          Int?
   id_reservacion_srv      BigInt
   posicion                Int
+  prioridad               String                   @default("cita") @db.VarChar(20)
   estado                  String                   @default("activo") @db.VarChar(20)
   tiempo_estimado_min     Int?
   created_at              DateTime                 @default(now()) @db.Timestamptz(6)

@@ -1,9 +1,11 @@
 import { Module } from '@nestjs/common';
-import { ResultsController } from './results.controller';
+import { ResultsController, ResultsAdminController } from './results.controller';
 import { ResultsService } from './results.service';
+import { AiModule } from '../ai/ai.module';
 
 @Module({
-  controllers: [ResultsController],
+  imports: [AiModule],
+  controllers: [ResultsController, ResultsAdminController],
   providers: [ResultsService],
   exports: [ResultsService],
 })

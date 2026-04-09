@@ -378,12 +378,18 @@ export class SchedulingService {
       }),
     );
 
+    // GAP 11: Filtrar estudios en_proceso del reordenamiento.
+    // Un estudio ya en atención no debe cambiar de posición.
+    const serviciosReordenables = servicios.filter(
+      (s) => s.estado !== 'en_proceso' && s.estado !== 'completado',
+    );
+
     const cdmxNow = nowCDMX();
     const reorder: DynamicReorderResponse = await this.ai.dynamicReorder({
       id_sucursal: reservacion.id_sucursal,
       hora: cdmxNow.hours,
       dia_semana: ((new Date().getDay() + 6) % 7), // JS: Dom=0; modelo: Lun=0
-      servicios,
+      servicios: serviciosReordenables.length > 0 ? serviciosReordenables : servicios,
       paciente: this.buildPacienteContext(reservacion.pacientes, {
         prioridad: 'cita',
       }),
