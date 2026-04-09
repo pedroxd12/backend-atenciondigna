@@ -72,21 +72,68 @@ export class SurveyService {
   /** KPI agregado para el dashboard de Salud Digna. */
   async satisfactionKpi() {
     const all = await this.prisma.encuestas.findMany();
-    if (all.length === 0) return { totalResponses: 0, averageRating: 0 };
+    if (all.length === 0) {
+      return {
+        totalResponses: 0,
+        averageRating: 0,
+        breakdown: {
+          espera: { avg: 0, count: 0 },
+          app: { avg: 0, count: 0 },
+          trato: { avg: 0, count: 0 },
+          general: { avg: 0, count: 0 },
+        },
+        nps: 0,
+        trends: { improving: false, delta: 0 },
+      };
+    }
 
-    const ratings = all
-      .flatMap((e) => [
-        e.calificacion_general,
-        e.calificacion_espera,
-        e.calificacion_trato,
-        e.calificacion_app,
-      ])
+    const avg = (arr: (number | null)[]) => {
+      const nums = arr.filter((n): n is number => n != null);
+      return nums.length > 0
+        ? Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 100) / 100
+        : 0;
+    };
+
+    const esperaRatings = all.map((e) => e.calificacion_espera);
+    const appRatings = all.map((e) => e.calificacion_app);
+    const tratoRatings = all.map((e) => e.calificacion_trato);
+    const generalRatings = all.map((e) => e.calificacion_general);
+
+    const allRatings = [...esperaRatings, ...appRatings, ...tratoRatings, ...generalRatings]
       .filter((n): n is number => n != null);
+    const overallAvg = allRatings.length > 0
+      ? Math.round((allRatings.reduce((a, b) => a + b, 0) / allRatings.length) * 100) / 100
+      : 0;
 
-    const avg = ratings.reduce((acc, n) => acc + n, 0) / ratings.length;
+    // NPS: % promotores (4-5) - % detractores (1-2) sobre calificacion_general
+    const generalNums = generalRatings.filter((n): n is number => n != null);
+    const promoters = generalNums.filter((n) => n >= 4).length;
+    const detractors = generalNums.filter((n) => n <= 2).length;
+    const nps = generalNums.length > 0
+      ? Math.round(((promoters - detractors) / generalNums.length) * 100)
+      : 0;
+
+    // Trend: comparar primera mitad vs segunda mitad
+    const half = Math.floor(all.length / 2);
+    const firstHalf = all.slice(0, half);
+    const secondHalf = all.slice(half);
+    const avgFirst = avg(firstHalf.flatMap((e) => [e.calificacion_general]));
+    const avgSecond = avg(secondHalf.flatMap((e) => [e.calificacion_general]));
+
     return {
       totalResponses: all.length,
-      averageRating: Math.round(avg * 100) / 100,
+      averageRating: overallAvg,
+      breakdown: {
+        espera: { avg: avg(esperaRatings), count: esperaRatings.filter((n) => n != null).length },
+        app: { avg: avg(appRatings), count: appRatings.filter((n) => n != null).length },
+        trato: { avg: avg(tratoRatings), count: tratoRatings.filter((n) => n != null).length },
+        general: { avg: avg(generalRatings), count: generalNums.length },
+      },
+      nps,
+      trends: {
+        improving: avgSecond > avgFirst,
+        delta: Math.round((avgSecond - avgFirst) * 100) / 100,
+      },
     };
   }
 }

@@ -14,6 +14,7 @@ import { SurveyModule } from './survey/survey.module';
 import { ResultsModule } from './results/results.module';
 import { ServicesModule } from './services/services.module';
 import { MapsModule } from './maps/maps.module';
+import { TrackingModule } from './tracking/tracking.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { MapsModule } from './maps/maps.module';
     ResultsModule,
     ServicesModule,
     MapsModule,
+    TrackingModule,
   ],
   controllers: [AppController],
   providers: [AppService],

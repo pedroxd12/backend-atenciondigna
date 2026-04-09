@@ -23,16 +23,14 @@ model cola_atencion {
   id_consultorio          Int?
   id_reservacion_srv      BigInt
   posicion                Int
-  prioridad               String                   @default("cita") @db.VarChar(20)
   estado                  String                   @default("activo") @db.VarChar(20)
   tiempo_estimado_min     Int?
   created_at              DateTime                 @default(now()) @db.Timestamptz(6)
+  prioridad               String                   @default("cita") @db.VarChar(20)
   sucursales_consultorios sucursales_consultorios? @relation(fields: [id_consultorio], references: [id], onDelete: NoAction, onUpdate: NoAction)
   estudios                estudios                 @relation(fields: [id_estudio], references: [id], onDelete: NoAction, onUpdate: NoAction)
   reservaciones_servicios reservaciones_servicios  @relation(fields: [id_reservacion_srv], references: [id], onDelete: NoAction, onUpdate: NoAction)
   sucursales              sucursales               @relation(fields: [id_sucursal], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-  @@index([id_sucursal, id_estudio, posicion], map: "idx_cola_posicion")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -69,12 +67,12 @@ model estudios {
   requiere_orden_medica                                                Boolean                       @default(false)
   max_vigencia_muestra_min                                             Int?
   control_puntualidad                                                  Boolean                       @default(false)
-  /// Horas minimas de preparacion previas (ej: ayuno 8h → 480 min).
-  /// Null = sin restriccion de preparacion temporal.
-  preparacion_horas_min                                                Int?
   descripcion                                                          String?
   activo                                                               Boolean                       @default(true)
   created_at                                                           DateTime                      @default(now()) @db.Timestamptz(6)
+  /// Horas minimas de preparacion previas (ej: ayuno 8h → 480 min).
+  /// Null = sin restriccion de preparacion temporal.
+  preparacion_horas_min                                                Int?
   cola_atencion                                                        cola_atencion[]
   estudios_restricciones_edad                                          estudios_restricciones_edad[]
   estudios_secuencias_estudios_secuencias_id_estudio_primeroToestudios estudios_secuencias[]         @relation("estudios_secuencias_id_estudio_primeroToestudios")
@@ -310,13 +308,13 @@ model sucursales {
   mapa_geojson                   Json?
   hora_apertura                  DateTime?                        @db.Time(6)
   hora_cierre                    DateTime?                        @db.Time(6)
+  activa                         Boolean                          @default(true)
+  created_at                     DateTime                         @default(now()) @db.Timestamptz(6)
+  updated_at                     DateTime                         @default(now()) @db.Timestamptz(6)
   /// Horario por dia de la semana. Estructura:
   /// { "0": { "open": 6, "close": 19 }, ..., "6": { "open": 6, "close": 14 } }
   /// donde 0 = Lunes ... 6 = Domingo. Si es null se cae a hora_apertura/hora_cierre.
   horario_semanal                Json?
-  activa                         Boolean                          @default(true)
-  created_at                     DateTime                         @default(now()) @db.Timestamptz(6)
-  updated_at                     DateTime                         @default(now()) @db.Timestamptz(6)
   cola_atencion                  cola_atencion[]
   historico_promedios            historico_promedios[]
   predicciones_ia                predicciones_ia[]
