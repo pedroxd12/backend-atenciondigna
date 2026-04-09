@@ -16,8 +16,7 @@ import {
 
 @Injectable()
 export class AuthService {
-  private readonly staffLoginPassword =
-    process.env.STAFF_LOGIN_PASSWORD ?? 'demo-staff-2026';
+  private readonly defaultStaffLoginPassword = 'demo-staff-2026';
 
   constructor(
     private readonly prisma: PrismaService,
@@ -88,7 +87,7 @@ export class AuthService {
       throw new UnauthorizedException('Usuario no encontrado');
     }
 
-    if (password !== this.staffLoginPassword) {
+    if (!this.isValidStaffPassword(password)) {
       throw new UnauthorizedException('Credenciales invalidas');
     }
 
@@ -112,6 +111,26 @@ export class AuthService {
         nombre: staff.sucursales.nombre,
       },
     };
+  }
+
+  private isValidStaffPassword(inputPassword: string): boolean {
+    const normalizedInput = inputPassword.trim();
+
+    // Allow one primary password and an optional comma-separated list,
+    // while keeping the demo fallback for environments not configured yet.
+    const primaryPassword = (process.env.STAFF_LOGIN_PASSWORD ?? '').trim();
+    const extraPasswords = (process.env.STAFF_LOGIN_PASSWORDS ?? '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    const allowedPasswords = new Set<string>([
+      this.defaultStaffLoginPassword,
+      primaryPassword,
+      ...extraPasswords,
+    ]);
+
+    return allowedPasswords.has(normalizedInput);
   }
 
   // ────────────────────────────────────────────────

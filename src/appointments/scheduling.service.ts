@@ -46,6 +46,38 @@ function fmtMin(m: number): string {
   return `${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
 }
 
+/**
+ * Devuelve la hora y minutos actuales en la zona horaria de Mexico (CDMX).
+ * Railway corre en UTC; sin esto, getHours() devuelve hora UTC y el
+ * sistema cree que son las 3 AM cuando en realidad son las 9 PM.
+ */
+function nowCDMX(): { hours: number; minutes: number; dateStr: string } {
+  const now = new Date();
+  // Intl formatea en la zona especificada sin dependencias externas
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Mexico_City',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+    .formatToParts(now)
+    .reduce(
+      (acc, p) => {
+        acc[p.type] = p.value;
+        return acc;
+      },
+      {} as Record<string, string>,
+    );
+  return {
+    hours: parseInt(parts.hour ?? '0'),
+    minutes: parseInt(parts.minute ?? '0'),
+    dateStr: `${parts.year}-${parts.month}-${parts.day}`,
+  };
+}
+
 @Injectable()
 export class SchedulingService {
   private readonly logger = new Logger(SchedulingService.name);
@@ -346,11 +378,11 @@ export class SchedulingService {
       }),
     );
 
-    const ahora = new Date();
+    const cdmxNow = nowCDMX();
     const reorder: DynamicReorderResponse = await this.ai.dynamicReorder({
       id_sucursal: reservacion.id_sucursal,
-      hora: ahora.getHours(),
-      dia_semana: (ahora.getDay() + 6) % 7, // JS: Dom=0; modelo: Lun=0
+      hora: cdmxNow.hours,
+      dia_semana: ((new Date().getDay() + 6) % 7), // JS: Dom=0; modelo: Lun=0
       servicios,
       paciente: this.buildPacienteContext(reservacion.pacientes, {
         prioridad: 'cita',
@@ -463,11 +495,13 @@ export class SchedulingService {
       };
     }
 
-    const ahora = new Date();
-    const esHoy = ahora.toISOString().slice(0, 10) === params.date;
+    // Hora actual en CDMX (Railway corre en UTC — sin esto, cree que
+    // son las 3 AM cuando en Mexico son las 9 PM y muestra slots del pasado).
+    const cdmx = nowCDMX();
+    const esHoy = cdmx.dateStr === params.date;
     // Si es hoy, minimo la hora actual + 30 min para que le de tiempo de llegar
     const minutosMinHoy = esHoy
-      ? ahora.getHours() * 60 + ahora.getMinutes() + 30
+      ? cdmx.hours * 60 + cdmx.minutes + 30
       : 0;
 
     // ── Datos de estudios de la BD ──
@@ -755,7 +789,7 @@ export class SchedulingService {
       throw new BadRequestException('studyIds vacio');
     }
 
-    const hoy = new Date().toISOString().slice(0, 10);
+    const hoy = nowCDMX().dateStr;
     const result = await this.availableSlots({
       branchId: params.branchId,
       date: hoy,
@@ -765,9 +799,9 @@ export class SchedulingService {
 
     if (result.slots.length === 0) {
       // No hay hueco hoy, buscar manana
-      const manana = new Date();
-      manana.setDate(manana.getDate() + 1);
-      const mananaStr = manana.toISOString().slice(0, 10);
+      const mananaDate = new Date();
+      mananaDate.setDate(mananaDate.getDate() + 1);
+      const mananaStr = mananaDate.toISOString().slice(0, 10);
       const resultManana = await this.availableSlots({
         branchId: params.branchId,
         date: mananaStr,
@@ -786,7 +820,8 @@ export class SchedulingService {
     }
 
     const slot = result.slots[0];
-    const ahoraMin = new Date().getHours() * 60 + new Date().getMinutes();
+    const cdmxWI = nowCDMX();
+    const ahoraMin = cdmxWI.hours * 60 + cdmxWI.minutes;
     const slotMin = parseInt(slot.time.split(':')[0]) * 60 +
                     parseInt(slot.time.split(':')[1]);
     const esperaDesdeAhora = Math.max(0, slotMin - ahoraMin) + slot.waitMin;
@@ -819,9 +854,9 @@ export class SchedulingService {
     if (!r) throw new NotFoundException('Reservación no encontrada');
 
     const minutosDesdeApertura = (() => {
-      const ahora = new Date();
-      // 7:00 AM apertura por defecto
-      return ahora.getHours() * 60 + ahora.getMinutes() - 7 * 60;
+      const c = nowCDMX();
+      // 6:00 AM apertura por defecto
+      return c.hours * 60 + c.minutes - 6 * 60;
     })();
 
     const plan = await this.ai.registerPatient({
