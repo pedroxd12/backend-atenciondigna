@@ -435,7 +435,20 @@ export class SchedulingService {
       horaCierre = this.hourFromTime(sucursal.hora_cierre) ?? 20;
     }
 
-    if (horaApertura >= horaCierre) {
+    const diaNombre = [
+      'lunes',
+      'martes',
+      'miercoles',
+      'jueves',
+      'viernes',
+      'sabado',
+      'domingo',
+    ][dow];
+    if (
+      horaApertura == null ||
+      horaCierre == null ||
+      horaApertura >= horaCierre
+    ) {
       // Sucursal cerrada ese dia
       return {
         branchId: params.branchId,
@@ -443,10 +456,19 @@ export class SchedulingService {
         studyIds: params.studyIds,
         slots: [],
         validations: [],
-        message: 'La sucursal no abre este dia',
+        message: `La sucursal no abre los ${diaNombre}.`,
         weeklyHours: { open: horaApertura, close: horaCierre },
       };
     }
+
+    // Si la fecha pedida es HOY, descartamos horas que ya pasaron
+    // (al menos 1h de margen para que el paciente alcance a llegar).
+    const ahora = new Date();
+    const esHoy =
+      ahora.getFullYear() === fechaObj.getFullYear() &&
+      ahora.getMonth() === fechaObj.getMonth() &&
+      ahora.getDate() === fechaObj.getDate();
+    const horaMinHoy = esHoy ? ahora.getHours() + 1 : 0;
 
     // Tiempos de atencion REALES del catalogo (BD).
     // El modelo IA solo predice tiempo de ESPERA. El total que ve el
@@ -488,11 +510,17 @@ export class SchedulingService {
         duracion_estimada_min: Math.max(45, tiempoAtencionTotal + 30),
         top_n: params.topN,
       });
-      return {
-        branchId: params.branchId,
-        date: params.date,
-        studyIds: params.studyIds,
-        slots: propuesta.slots.map((s) => {
+
+      // Filtro defensivo: descartamos cualquier slot que el modelo IA
+      // haya devuelto fuera de la ventana del dia o en el pasado de hoy.
+      const slotsFiltrados = propuesta.slots
+        .filter(
+          (s) =>
+            s.hora >= horaApertura &&
+            s.hora < horaCierre &&
+            s.hora >= horaMinHoy,
+        )
+        .map((s) => {
           const espera = Math.round(s.tiempo_total_estimado_min);
           const atencion = Math.round(tiempoAtencionTotal);
           return {
@@ -507,10 +535,21 @@ export class SchedulingService {
             reason: s.razon,
             orderedStudyIds: s.orden_recomendado,
           };
-        }),
+        });
+
+      return {
+        branchId: params.branchId,
+        date: params.date,
+        studyIds: params.studyIds,
+        slots: slotsFiltrados,
         validations: propuesta.validaciones,
         weeklyHours: { open: horaApertura, close: horaCierre },
         source: 'ai' as const,
+        message: slotsFiltrados.length === 0
+          ? esHoy
+            ? 'Ya no hay horarios disponibles hoy. Elige otro dia.'
+            : `Sin horarios disponibles los ${diaNombre}.`
+          : undefined,
       };
     } catch (e) {
       this.logger.warn(
@@ -527,6 +566,7 @@ export class SchedulingService {
       fecha: params.date,
       horaApertura,
       horaCierre,
+      horaMinHoy,
       esperaHistTotal,
       atencionTotal: Math.round(tiempoAtencionTotal),
       studyIds: params.studyIds,
@@ -542,6 +582,11 @@ export class SchedulingService {
       validations: [],
       weeklyHours: { open: horaApertura, close: horaCierre },
       source: 'historical' as const,
+      message: slots.length === 0
+        ? esHoy
+          ? 'Ya no hay horarios disponibles hoy. Elige otro dia.'
+          : `Sin horarios disponibles los ${diaNombre}.`
+        : undefined,
     };
   }
 
@@ -555,6 +600,7 @@ export class SchedulingService {
     fecha: string;
     horaApertura: number;
     horaCierre: number;
+    horaMinHoy: number;
     esperaHistTotal: number;
     atencionTotal: number;
     studyIds: number[];
@@ -562,7 +608,8 @@ export class SchedulingService {
     duracionEstimadaMin: number;
   }) {
     const margenHoras = Math.max(1, Math.ceil(opts.duracionEstimadaMin / 60));
-    const horaMax = Math.max(opts.horaApertura + 1, opts.horaCierre - margenHoras);
+    const horaInicio = Math.max(opts.horaApertura, opts.horaMinHoy);
+    const horaMax = opts.horaCierre - margenHoras;
     const slots: Array<{
       date: string;
       hour: number;
@@ -576,7 +623,7 @@ export class SchedulingService {
       orderedStudyIds: number[];
     }> = [];
 
-    for (let hora = opts.horaApertura; hora <= horaMax; hora++) {
+    for (let hora = horaInicio; hora <= horaMax; hora++) {
       // Multiplicador de saturacion historica: pico = mas espera.
       let mult = 1.0;
       let razon = 'horario tranquilo';
