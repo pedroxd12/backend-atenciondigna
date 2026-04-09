@@ -75,6 +75,24 @@ export class AppointmentsController {
     });
   }
 
+  /**
+   * Walk-in: paciente llega SIN cita. Encuentra el proximo hueco.
+   * Query: branchId=46&studyIds=2,5
+   */
+  @Get('walk-in')
+  walkIn(
+    @Query('branchId') branchId: string,
+    @Query('studyIds') studyIds: string,
+  ) {
+    return this.scheduling.walkIn({
+      branchId: Number(branchId),
+      studyIds: studyIds
+        .split(',')
+        .map((s) => Number(s.trim()))
+        .filter((n) => Number.isFinite(n)),
+    });
+  }
+
   /** Reagenda inteligentemente una reservación existente. */
   @Post(':id/reschedule')
   @HttpCode(200)
