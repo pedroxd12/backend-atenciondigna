@@ -1,7 +1,9 @@
-import { Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
+import { Controller, Get, HttpCode, Param, Post, UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ResultsService } from './results.service';
 
 @Controller('pacientes')
+@UseGuards(JwtAuthGuard)
 export class ResultsController {
   constructor(private readonly results: ResultsService) {}
 
@@ -12,10 +14,10 @@ export class ResultsController {
 }
 
 @Controller('resultados')
+@UseGuards(JwtAuthGuard)
 export class ResultsAdminController {
   constructor(private readonly results: ResultsService) {}
 
-  /** Genera resúmenes IA para resultados disponibles sin resumen. */
   @Post('generar-resumenes')
   @HttpCode(200)
   generateSummaries() {

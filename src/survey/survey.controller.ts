@@ -1,4 +1,5 @@
-import { Body, Controller, Get, HttpCode, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { SurveyService, SurveyAnswer } from './survey.service';
 
 class SubmitSurveyDto {
@@ -8,6 +9,7 @@ class SubmitSurveyDto {
 }
 
 @Controller('encuestas')
+@UseGuards(JwtAuthGuard)
 export class SurveyController {
   constructor(private readonly survey: SurveyService) {}
 

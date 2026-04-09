@@ -477,10 +477,12 @@ async function main() {
   });
   console.log('  ✓ Staff demo: recepcion@atenciondigna.com / medico@atenciondigna.com');
 
-  // ── 5. Paciente demo ──
+  // ── 5. Paciente demo (con password para login por email) ──
+  const bcrypt = await import('bcrypt');
+  const demoPasswordHash = await bcrypt.hash('Demo2026!', 10);
   await prisma.pacientes.upsert({
     where: { id: DEMO_PATIENT_ID },
-    update: { nombre: 'Ana', apellido_paterno: 'Garcia' },
+    update: { nombre: 'Ana', apellido_paterno: 'Garcia', password_hash: demoPasswordHash },
     create: {
       id: DEMO_PATIENT_ID,
       firebase_uid: 'demo-firebase-uid',
@@ -488,11 +490,14 @@ async function main() {
       apellido_paterno: 'Garcia',
       apellido_materno: 'Lopez',
       email: 'ana.demo@gmail.com',
+      password_hash: demoPasswordHash,
+      fecha_nacimiento: new Date('1992-03-20'),
+      sexo: 'F',
       latitud_habitual: 19.3417,
       longitud_habitual: -99.1612,
     },
   });
-  console.log(`  ✓ Paciente demo: ${DEMO_PATIENT_ID}`);
+  console.log(`  ✓ Paciente demo: ${DEMO_PATIENT_ID} (ana.demo@gmail.com / Demo2026!)`);
 
   // ── 6. Reservacion para HOY ──
   const hoy = new Date();

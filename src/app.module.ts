@@ -15,6 +15,7 @@ import { ResultsModule } from './results/results.module';
 import { ServicesModule } from './services/services.module';
 import { MapsModule } from './maps/maps.module';
 import { TrackingModule } from './tracking/tracking.module';
+import { RealtimeModule } from './realtime/realtime.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { TrackingModule } from './tracking/tracking.module';
     ServicesModule,
     MapsModule,
     TrackingModule,
+    RealtimeModule,
   ],
   controllers: [AppController],
   providers: [AppService],

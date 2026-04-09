@@ -6,11 +6,14 @@ import {
   NotFoundException,
   Param,
   Post,
+  UseGuards,
 } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CheckinService } from './checkin.service';
 import { GeneratePassDto, ValidateClinicalDto } from './dto/checkin.dto';
 
 @Controller('checkin')
+@UseGuards(JwtAuthGuard)
 export class CheckinController {
   constructor(private readonly checkin: CheckinService) {}
 
@@ -26,7 +29,6 @@ export class CheckinController {
     return this.checkin.validateClinicalRules(body);
   }
 
-  /** Endpoint usado por la app del receptor para canjear el QR. */
   @Post('canjear/:token')
   @HttpCode(200)
   redeem(@Param('token') token: string) {
@@ -35,13 +37,6 @@ export class CheckinController {
     return pass;
   }
 
-  /**
-   * GAP 12: Endpoint para que el recepcionista haga check-in escaneando
-   * el QR del paciente desde el dashboard.
-   *
-   * El payload del QR es: "AD|<token>|<patientId>|<branchId>|<studyIds>"
-   * El dashboard envía el string crudo y este endpoint lo parsea y canjea.
-   */
   @Post('canjear-qr')
   @HttpCode(200)
   async redeemByQr(@Body() body: { qrPayload: string }) {

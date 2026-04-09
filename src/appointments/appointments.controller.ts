@@ -7,8 +7,10 @@ import {
   Post,
   Query,
   Sse,
+  UseGuards,
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AppointmentsService } from './appointments.service';
 import { SchedulingService } from './scheduling.service';
 import { CreateAppointmentDto } from './dto/appointment.dto';
@@ -18,6 +20,7 @@ import {
 } from './dto/smart-appointment.dto';
 
 @Controller('reservaciones')
+@UseGuards(JwtAuthGuard)
 export class AppointmentsController {
   constructor(
     private readonly service: AppointmentsService,
@@ -39,24 +42,12 @@ export class AppointmentsController {
   // Agenda inteligente
   // ──────────────────────────────────────────────
 
-  /** Crea reservación usando IA para encontrar el mejor slot del día. */
   @Post('smart')
   @HttpCode(200)
   smartCreate(@Body() body: CreateSmartAppointmentDto) {
     return this.scheduling.smartCreate(body);
   }
 
-  /**
-   * Devuelve la lista de horarios disponibles del dia para un paquete
-   * de estudios. Cada horario incluye su tiempo total estimado y nivel
-   * de saturacion calculados por el modelo de IA.
-   *
-   * Query params:
-   *   - branchId
-   *   - date (YYYY-MM-DD)
-   *   - studyIds (CSV: "2,5,11")
-   *   - topN (default 8)
-   */
   @Get('slots')
   availableSlots(
     @Query('branchId') branchId: string,
@@ -75,11 +66,6 @@ export class AppointmentsController {
     });
   }
 
-  /**
-   * Valida una hora elegida por el paciente y devuelve disponibilidad
-   * por cada servicio/estudio. El paciente elige libremente, el sistema
-   * le dice si es posible y recomienda alternativas.
-   */
   @Get('check-time')
   checkTime(
     @Query('branchId') branchId: string,
@@ -98,10 +84,6 @@ export class AppointmentsController {
     });
   }
 
-  /**
-   * Walk-in: paciente llega SIN cita. Encuentra el proximo hueco.
-   * Query: branchId=46&studyIds=2,5
-   */
   @Get('walk-in')
   walkIn(
     @Query('branchId') branchId: string,
@@ -116,20 +98,17 @@ export class AppointmentsController {
     });
   }
 
-  /** Reagenda inteligentemente una reservación existente. */
   @Post(':id/reschedule')
   @HttpCode(200)
   reschedule(@Param('id') id: string, @Body() body: RescheduleAppointmentDto) {
     return this.scheduling.reschedule(id, body);
   }
 
-  /** Snapshot del plan vigente del paciente con reordenamiento dinámico. */
   @Get('paciente/:id/plan')
   livePlan(@Param('id') id: string) {
     return this.scheduling.livePlan(id);
   }
 
-  /** SSE — push del plan + reordenamientos en vivo cada 5s. */
   @Sse('paciente/:id/plan/stream')
   livePlanStream(@Param('id') id: string): Observable<{ data: unknown }> {
     return this.scheduling.livePlanStream(id);
@@ -139,14 +118,12 @@ export class AppointmentsController {
   // Scheduler global de sucursal (in-memory clinic)
   // ──────────────────────────────────────────────
 
-  /** Registra la llegada del paciente y dispara el re-plan global. */
   @Post(':id/arrival')
   @HttpCode(200)
   registerArrival(@Param('id') id: string) {
     return this.scheduling.registerArrivalAndReplan(id);
   }
 
-  /** Marca el inicio de un estudio (consultorio empezó con el paciente). */
   @Post('clinic/:branchId/patient/:patientId/study/:studyId/start')
   @HttpCode(200)
   startAttention(
@@ -161,7 +138,6 @@ export class AppointmentsController {
     );
   }
 
-  /** Marca el fin de un estudio (consultorio se libera). */
   @Post('clinic/:branchId/patient/:patientId/study/:studyId/finish')
   @HttpCode(200)
   finishAttention(
@@ -176,13 +152,11 @@ export class AppointmentsController {
     );
   }
 
-  /** Saturación viva por sala (alimenta el dashboard). */
   @Get('clinic/:branchId/snapshot')
   clinicSnapshot(@Param('branchId') branchId: string) {
     return this.scheduling.clinicSnapshot(Number(branchId));
   }
 
-  /** Plan global vigente (todos los pacientes + ETA + swaps). */
   @Get('clinic/:branchId/plan')
   clinicPlan(@Param('branchId') branchId: string) {
     return this.scheduling.clinicPlan(Number(branchId));
