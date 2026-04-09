@@ -9,6 +9,7 @@
  * Ejecutar: npx prisma db seed
  */
 import { PrismaClient } from '@prisma/client';
+import { SEED_CATALOGO } from './seed_catalog';
 
 const prisma = new PrismaClient();
 
@@ -118,6 +119,119 @@ async function main() {
     });
   }
   console.log('  ✓ Estudios base creados/actualizados');
+
+  // ── 2.5 CATALOGO COMPLETO (12 categorias del Excel + extras MVP) ──
+  // Crea/actualiza un row en `estudios` por cada categoria del catalogo
+  // y luego upsertea todas las variantes en `servicios_salud_digna`.
+  // Esto reemplaza el catalogo hardcodeado de la app movil.
+  //
+  // Idempotencia: tanto `id` como `nombre` son unicos en `estudios`.
+  // Buscamos primero por id; si existe, solo actualizamos campos
+  // (ojo: NO renombramos para no chocar con el unique sobre nombre).
+  // Si no existe, buscamos por nombre — si lo encontramos, actualizamos
+  // sin tocar el id. Si tampoco existe, creamos uno nuevo con el id
+  // pedido (cuando sea posible) o autogenerado.
+  let totalInsertados = 0;
+  let totalSaltados = 0;
+
+  for (const cat of SEED_CATALOGO) {
+    // ── 2.5.a Resolver / crear la categoria en `estudios` ──
+    let estudioId: number = cat.id;
+    const byId = await prisma.estudios.findUnique({ where: { id: cat.id } });
+    if (byId) {
+      await prisma.estudios.update({
+        where: { id: cat.id },
+        data: {
+          tiempo_espera_promedio_min: cat.tiempoEsperaPromedioMin,
+          tiempo_atencion_promedio_min: cat.tiempoServicioMin,
+          activo: true,
+        },
+      });
+    } else {
+      const byName = await prisma.estudios.findUnique({
+        where: { nombre: cat.nombre },
+      });
+      if (byName) {
+        estudioId = byName.id;
+        await prisma.estudios.update({
+          where: { id: byName.id },
+          data: {
+            tiempo_espera_promedio_min: cat.tiempoEsperaPromedioMin,
+            tiempo_atencion_promedio_min: cat.tiempoServicioMin,
+            activo: true,
+          },
+        });
+      } else {
+        const created = await prisma.estudios.create({
+          data: {
+            id: cat.id,
+            nombre: cat.nombre,
+            tiempo_espera_promedio_min: cat.tiempoEsperaPromedioMin,
+            tiempo_atencion_promedio_min: cat.tiempoServicioMin,
+            activo: true,
+          },
+        });
+        estudioId = created.id;
+      }
+    }
+    cat.id = estudioId;
+
+    if (cat.items.length === 0) continue;
+
+    // De-dup por nombre para no chocar con el unique [id_estudio, nombre]
+    const vistos = new Set<string>();
+    const toInsert: {
+      id_estudio: number;
+      nombre: string;
+      precio: number | null;
+      es_paquete: boolean;
+      activo: boolean;
+    }[] = [];
+    for (const it of cat.items) {
+      if (vistos.has(it.nombre)) continue;
+      vistos.add(it.nombre);
+      toInsert.push({
+        id_estudio: estudioId,
+        nombre: it.nombre,
+        precio: it.precio ?? null,
+        es_paquete: it.nombre.toLowerCase().includes('paquete'),
+        activo: true,
+      });
+    }
+
+    const antes = await prisma.servicios_salud_digna.count({
+      where: { id_estudio: estudioId },
+    });
+
+    const result = await prisma.servicios_salud_digna.createMany({
+      data: toInsert,
+      skipDuplicates: true,
+    });
+
+    const despues = await prisma.servicios_salud_digna.count({
+      where: { id_estudio: estudioId },
+    });
+
+    totalInsertados += result.count;
+    totalSaltados += toInsert.length - result.count;
+
+    console.log(
+      `    [${cat.nombre.padEnd(22)}] +${result.count
+        .toString()
+        .padStart(3)} nuevos / ${(toInsert.length - result.count)
+        .toString()
+        .padStart(3)} saltados / total en BD: ${despues}  (antes ${antes})`,
+    );
+  }
+
+  const totalEsperado = SEED_CATALOGO.reduce((n, c) => n + c.items.length, 0);
+  const totalEnBd = await prisma.servicios_salud_digna.count();
+  console.log(
+    `  ✓ Catalogo completo: ${SEED_CATALOGO.length} categorias, ` +
+      `${totalInsertados} servicios nuevos insertados, ` +
+      `${totalSaltados} ya existian. ` +
+      `Total esperado en SEED: ${totalEsperado}. Total ahora en BD: ${totalEnBd}.`,
+  );
 
   // ── 3. Sucursal demo (la primera disponible) ──
   const sucursalDemo = await prisma.sucursales.findFirst({

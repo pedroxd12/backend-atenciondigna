@@ -13,6 +13,12 @@ export class ServicesController {
     return this.services.listarCategorias();
   }
 
+  /** Catalogo completo: 12 categorias + variantes + tiempos vivos del modelo IA. */
+  @Get('catalogo-completo')
+  catalogoCompleto() {
+    return this.services.catalogoCompleto();
+  }
+
   @Get('categoria/:idEstudio')
   listarPorCategoria(@Param('idEstudio', ParseIntPipe) idEstudio: number) {
     return this.services.listarServiciosPorCategoria(idEstudio);
