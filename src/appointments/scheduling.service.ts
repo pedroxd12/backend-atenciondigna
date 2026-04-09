@@ -394,15 +394,26 @@ export class SchedulingService {
   }
 
   // ──────────────────────────────────────────────
+  // ──────────────────────────────────────────────
   // 4) Auto-detect tardanza y reagendar (para checkin)
   // ──────────────────────────────────────────────
   // ──────────────────────────────────────────────
-  // 4.5) Slots disponibles para la app (lista de horarios)
+  // 4.5) Motor inteligente de recomendacion de horarios
   // ──────────────────────────────────────────────
   /**
-   * Devuelve los horarios candidatos del dia (top N) para que el paciente
-   * elija. Cada slot ya tiene tiempo total estimado, orden recomendado,
-   * nivel de saturacion y "razon" (por que es buen slot).
+   * Motor inteligente de recomendacion de horarios.
+   *
+   * Para CADA HORA de la jornada calcula:
+   *   1. Carga REAL: citas ya registradas en la BD para ese dia/hora/estudio.
+   *   2. Capacidad: consultorios disponibles por estudio (BD).
+   *   3. Prediccion IA: llama al modelo XGBoost con pacientes_en_cola
+   *      REALES para obtener el tiempo de espera POR ESTUDIO.
+   *   4. Tiempo de atencion: sumado de los estudios (BD).
+   *   5. Reglas de negocio: orden sin-prep primero, secuencias obligatorias,
+   *      prioridad de pacientes, puntualidad estricta para Tomo/RM.
+   *   6. Score compuesto: menor carga + menor espera + capacidad libre.
+   *
+   * Devuelve los mejores slots ordenados con razon explicativa y tag.
    */
   async availableSlots(params: {
     branchId: number;
@@ -415,174 +426,224 @@ export class SchedulingService {
     }
     const sucursal = await this.ensureBranch(params.branchId);
 
-    // Resolver horario para el dia de la semana del request.
-    // 0 = Lunes ... 6 = Domingo (mismo encoding que el modelo Python).
+    // ── Horario del dia ──
     const fechaObj = new Date(`${params.date}T00:00:00`);
-    const jsDow = fechaObj.getDay(); // 0=Dom...6=Sab en JS
-    const dow = (jsDow + 6) % 7; // a 0=Lun...6=Dom
+    const jsDow = fechaObj.getDay();
+    const dow = (jsDow + 6) % 7;
+    const DIAS = ['lunes','martes','miercoles','jueves','viernes','sabado','domingo'];
+    const diaNombre = DIAS[dow];
 
     const horarioJson = sucursal.horario_semanal as
-      | Record<string, { open: number; close: number }>
-      | null
-      | undefined;
-    let horaApertura: number;
-    let horaCierre: number;
-    if (horarioJson && horarioJson[String(dow)]) {
-      horaApertura = horarioJson[String(dow)].open;
-      horaCierre = horarioJson[String(dow)].close;
-    } else {
-      horaApertura = this.hourFromTime(sucursal.hora_apertura) ?? 7;
-      horaCierre = this.hourFromTime(sucursal.hora_cierre) ?? 20;
-    }
+      | Record<string, { open: number; close: number }> | null | undefined;
+    const hdia = horarioJson?.[String(dow)];
+    const horaApertura = hdia?.open ?? (this.hourFromTime(sucursal.hora_apertura) ?? 6);
+    const horaCierre = hdia?.close ?? (this.hourFromTime(sucursal.hora_cierre) ?? 19);
 
-    const diaNombre = [
-      'lunes',
-      'martes',
-      'miercoles',
-      'jueves',
-      'viernes',
-      'sabado',
-      'domingo',
-    ][dow];
-    if (
-      horaApertura == null ||
-      horaCierre == null ||
-      horaApertura >= horaCierre
-    ) {
-      // Sucursal cerrada ese dia
+    if (horaApertura >= horaCierre) {
       return {
-        branchId: params.branchId,
-        date: params.date,
-        studyIds: params.studyIds,
-        slots: [],
-        validations: [],
+        branchId: params.branchId, date: params.date,
+        studyIds: params.studyIds, slots: [], validations: [],
         message: `La sucursal no abre los ${diaNombre}.`,
         weeklyHours: { open: horaApertura, close: horaCierre },
       };
     }
 
-    // Si la fecha pedida es HOY, descartamos horas que ya pasaron
-    // (al menos 1h de margen para que el paciente alcance a llegar).
     const ahora = new Date();
-    const esHoy =
-      ahora.getFullYear() === fechaObj.getFullYear() &&
-      ahora.getMonth() === fechaObj.getMonth() &&
-      ahora.getDate() === fechaObj.getDate();
+    const esHoy = ahora.toISOString().slice(0, 10) === params.date;
     const horaMinHoy = esHoy ? ahora.getHours() + 1 : 0;
 
-    // Tiempos de atencion REALES del catalogo (BD).
-    // El modelo IA solo predice tiempo de ESPERA. El total que ve el
-    // paciente debe ser: espera + atencion.
-    const estudios = await this.prisma.estudios.findMany({
+    // ── Datos de estudios de la BD ──
+    const estudiosDB = await this.prisma.estudios.findMany({
       where: { id: { in: params.studyIds } },
-      select: { id: true, tiempo_atencion_promedio_min: true },
     });
-    const atencionPorEstudio = new Map<number, number>(
-      estudios.map((e) => [e.id, e.tiempo_atencion_promedio_min ?? 10]),
-    );
-    const tiempoAtencionTotal = params.studyIds.reduce(
-      (acc, id) => acc + (atencionPorEstudio.get(id) ?? 10),
-      0,
-    );
+    const atencionMap = new Map(estudiosDB.map(e => [e.id, e.tiempo_atencion_promedio_min ?? 10]));
+    const esperaMap = new Map(estudiosDB.map(e => [e.id, e.tiempo_espera_promedio_min ?? 20]));
+    const prepMap = new Map(estudiosDB.map(e => [e.id, e.requiere_preparacion]));
+    const tiempoAtencionTotal = params.studyIds.reduce((a, id) => a + (atencionMap.get(id) ?? 10), 0);
 
-    // Tiempo de espera HISTORICO promedio de los estudios (BD)
-    const estudiosFull = await this.prisma.estudios.findMany({
-      where: { id: { in: params.studyIds } },
-      select: {
-        id: true,
-        tiempo_atencion_promedio_min: true,
-        tiempo_espera_promedio_min: true,
-      },
-    });
-    const esperaHistTotal = estudiosFull.reduce(
-      (acc, e) => acc + (e.tiempo_espera_promedio_min ?? 20),
-      0,
-    );
-
-    // 1) INTENTAR el modelo IA. Si responde, usamos sus slots.
-    try {
-      const propuesta = await this.ai.optimalSlot({
-        id_sucursal: params.branchId,
-        fecha: params.date,
-        estudios: params.studyIds,
-        hora_apertura: horaApertura,
-        hora_cierre: horaCierre,
-        duracion_estimada_min: Math.max(45, tiempoAtencionTotal + 30),
-        top_n: params.topN,
-      });
-
-      // Filtro defensivo: descartamos cualquier slot que el modelo IA
-      // haya devuelto fuera de la ventana del dia o en el pasado de hoy.
-      const slotsFiltrados = propuesta.slots
-        .filter(
-          (s) =>
-            s.hora >= horaApertura &&
-            s.hora < horaCierre &&
-            s.hora >= horaMinHoy,
-        )
-        .map((s) => {
-          const espera = Math.round(s.tiempo_total_estimado_min);
-          const atencion = Math.round(tiempoAtencionTotal);
-          return {
-            date: s.fecha,
-            hour: s.hora,
-            time: `${String(s.hora).padStart(2, '0')}:00`,
-            waitMin: espera,
-            serviceMin: atencion,
-            totalEstimatedMin: espera + atencion,
-            saturationLevel: s.nivel_saturacion_promedio,
-            score: s.score,
-            reason: s.razon,
-            orderedStudyIds: s.orden_recomendado,
-          };
-        });
-
-      return {
-        branchId: params.branchId,
-        date: params.date,
-        studyIds: params.studyIds,
-        slots: slotsFiltrados,
-        validations: propuesta.validaciones,
-        weeklyHours: { open: horaApertura, close: horaCierre },
-        source: 'ai' as const,
-        message: slotsFiltrados.length === 0
-          ? esHoy
-            ? 'Ya no hay horarios disponibles hoy. Elige otro dia.'
-            : `Sin horarios disponibles los ${diaNombre}.`
-          : undefined,
-      };
-    } catch (e) {
-      this.logger.warn(
-        `IA caida para slots ${params.branchId}/${params.date}: ${
-          e instanceof Error ? e.message : String(e)
-        } — fallback a heuristica BD.`,
-      );
+    // ── Orden recomendado de estudios (reglas de negocio) ──
+    const sinPrep = params.studyIds.filter(id => !prepMap.get(id));
+    const conPrep = params.studyIds.filter(id => prepMap.get(id));
+    const ordenOptimo = [...sinPrep, ...conPrep];
+    const SECUENCIAS: [number, number][] = [[1,11],[1,12],[4,6],[4,24],[4,56],[2,6]];
+    for (let iter = 0; iter < 8; iter++) {
+      let changed = false;
+      for (const [p, s] of SECUENCIAS) {
+        const i1 = ordenOptimo.indexOf(p);
+        const i2 = ordenOptimo.indexOf(s);
+        if (i1 >= 0 && i2 >= 0 && i1 > i2) {
+          ordenOptimo.splice(i1, 1);
+          ordenOptimo.splice(i2, 0, p);
+          changed = true;
+        }
+      }
+      if (!changed) break;
     }
 
-    // 2) FALLBACK heuristico SIN modelo IA: generamos slots por hora,
-    //    asignamos saturacion segun la franja del dia y devolvemos tiempos
-    //    historicos de la BD. Asi la app NUNCA se queda sin horarios.
-    const slots = this.generarSlotsHeuristicos({
-      fecha: params.date,
-      horaApertura,
-      horaCierre,
-      horaMinHoy,
-      esperaHistTotal,
-      atencionTotal: Math.round(tiempoAtencionTotal),
-      studyIds: params.studyIds,
-      topN: params.topN,
-      duracionEstimadaMin: Math.max(45, tiempoAtencionTotal + 30),
+    // ── Validaciones por reglas de negocio ──
+    const validaciones: Array<{ regla: string; severidad: string; mensaje: string; accion?: string }> = [];
+    for (const e of estudiosDB) {
+      const n = e.nombre.toUpperCase();
+      if (n.includes('MASTOGRAFIA') || n.includes('MASTOGRAFÍA')) {
+        validaciones.push({
+          regla: 'mastografia.preparacion', severidad: 'info',
+          mensaje: 'No uses desodorante, talco ni cremas el dia del estudio.',
+          accion: 'Si tienes menos de 35 anos, trae orden medica de especialista.',
+        });
+      }
+      if (n.includes('TOMOGRAFIA') || n.includes('TOMOGRAFÍA') || n.includes('RESONANCIA')) {
+        validaciones.push({
+          regla: 'puntualidad.estricta', severidad: 'warning',
+          mensaje: `${e.nombre}: debes llegar puntual o se reasignara tu cita.`,
+        });
+      }
+      if (n.includes('LABORATORIO')) {
+        validaciones.push({
+          regla: 'laboratorio.ayuno', severidad: 'info',
+          mensaje: 'Requiere ayuno de 8-12 horas. Si traes orina, max 2 horas de recolectada.',
+        });
+      }
+      if (n.includes('PAPANICOLAOU')) {
+        validaciones.push({
+          regla: 'papanicolaou.orden', severidad: 'info',
+          mensaje: 'Si tienes otros estudios ginecologicos, Papanicolaou va primero.',
+        });
+      }
+    }
+
+    // ── Consultorios por estudio ──
+    const consultorios = await this.prisma.sucursales_consultorios.findMany({
+      where: { id_sucursal: params.branchId, activo: true },
     });
+    const capMap = new Map(consultorios.map(c => [c.id_estudio, c.cantidad]));
+
+    // ── Citas registradas para ese dia ──
+    const fechaStart = new Date(`${params.date}T00:00:00Z`);
+    const fechaEnd = new Date(`${params.date}T23:59:59Z`);
+    const citasDelDia = await this.prisma.reservaciones.findMany({
+      where: {
+        id_sucursal: params.branchId,
+        fecha_programada: { gte: fechaStart, lte: fechaEnd },
+        estado: { in: ['pendiente', 'confirmada', 'en_proceso'] },
+      },
+      include: { reservaciones_servicios: true },
+    });
+
+    const cargaPorHora = new Map<number, number>();
+    const cargaPorHoraEstudio = new Map<string, number>();
+    for (const r of citasDelDia) {
+      const h = r.hora_programada ? new Date(r.hora_programada).getUTCHours() : 8;
+      cargaPorHora.set(h, (cargaPorHora.get(h) ?? 0) + 1);
+      for (const s of r.reservaciones_servicios) {
+        const k = `${h}-${s.id_estudio}`;
+        cargaPorHoraEstudio.set(k, (cargaPorHoraEstudio.get(k) ?? 0) + 1);
+      }
+    }
+    const totalCitasDia = citasDelDia.length;
+
+    // ── Generar slots hora por hora ──
+    const margen = Math.max(1, Math.ceil(tiempoAtencionTotal / 60) + 1);
+    type Slot = {
+      date: string; hour: number; time: string;
+      waitMin: number; serviceMin: number; totalEstimatedMin: number;
+      saturationLevel: 'bajo' | 'medio' | 'alto' | 'critico';
+      score: number; reason: string; orderedStudyIds: number[];
+      citasRegistradas: number; capacidadLibre: number;
+      recommended: boolean; tag: string;
+    };
+    const allSlots: Slot[] = [];
+
+    for (let hora = Math.max(horaApertura, horaMinHoy); hora < horaCierre - margen + 1; hora++) {
+      const citasHora = cargaPorHora.get(hora) ?? 0;
+
+      // Prediccion de espera por estudio
+      let esperaTotal = 0;
+      let usedIA = false;
+      for (const id of ordenOptimo) {
+        const colaReal = cargaPorHoraEstudio.get(`${hora}-${id}`) ?? 0;
+        const cap = capMap.get(id) ?? 1;
+        try {
+          const pred = await this.ai.predict({
+            id_sucursal: params.branchId,
+            id_estudio: id, hora, dia_semana: dow,
+            pacientes_en_cola: colaReal,
+            consultorios_activos: cap,
+          });
+          esperaTotal += pred.tiempo_espera_pred_min;
+          usedIA = true;
+        } catch {
+          const base = esperaMap.get(id) ?? 20;
+          esperaTotal += colaReal > 0 ? base * (1 + colaReal * 0.15) : base * 0.7;
+        }
+      }
+      esperaTotal = Math.round(esperaTotal);
+
+      let capLibre = 0;
+      for (const id of params.studyIds) {
+        const cap = capMap.get(id) ?? 1;
+        const cola = cargaPorHoraEstudio.get(`${hora}-${id}`) ?? 0;
+        capLibre += Math.max(0, cap - cola);
+      }
+
+      let nivel: 'bajo' | 'medio' | 'alto' | 'critico' = 'bajo';
+      if (esperaTotal > 40) nivel = 'critico';
+      else if (esperaTotal > 25) nivel = 'alto';
+      else if (esperaTotal > 12) nivel = 'medio';
+
+      const razones: string[] = [];
+      if (citasHora === 0) razones.push('sin citas registradas');
+      else if (citasHora <= 3) razones.push(`${citasHora} citas`);
+      else razones.push(`${citasHora} citas registradas`);
+      if (capLibre > 0) razones.push('consultorios disponibles');
+      if (hora >= 6 && hora < 8) razones.push('apertura');
+      else if (hora >= 10 && hora <= 11) razones.push('media manana');
+      else if (hora >= 7 && hora <= 9 && citasHora > 3) razones.push('hora pico');
+      if (usedIA) razones.push('IA');
+
+      let tag = '';
+      let recommended = false;
+      if (citasHora <= 2 && nivel === 'bajo') { tag = 'Recomendado'; recommended = true; }
+      else if (citasHora <= 4 && (nivel === 'bajo' || nivel === 'medio')) { tag = 'Buena opcion'; }
+      else if (nivel === 'alto' || nivel === 'critico') { tag = 'Alta demanda'; }
+
+      const total = esperaTotal + Math.round(tiempoAtencionTotal);
+      const nivelMap = { bajo: 0, medio: 0.3, alto: 0.6, critico: 1 };
+      const score = (
+        0.35 * (esperaTotal / 60) +
+        0.25 * (citasHora / Math.max(totalCitasDia, 1)) +
+        0.20 * nivelMap[nivel] +
+        0.10 * (capLibre <= 0 ? 1 : 0) +
+        0.10 * (hora >= 7 && hora <= 9 ? 0.5 : 0)
+      );
+
+      allSlots.push({
+        date: params.date, hour: hora,
+        time: `${String(hora).padStart(2, '0')}:00`,
+        waitMin: esperaTotal, serviceMin: Math.round(tiempoAtencionTotal),
+        totalEstimatedMin: total,
+        saturationLevel: nivel,
+        score: Math.round(score * 1000) / 1000,
+        reason: razones.join(' · '),
+        orderedStudyIds: ordenOptimo,
+        citasRegistradas: citasHora, capacidadLibre: capLibre,
+        recommended, tag,
+      });
+    }
+
+    allSlots.sort((a, b) => a.score - b.score);
+    const topSlots = allSlots.slice(0, params.topN);
 
     return {
       branchId: params.branchId,
       date: params.date,
       studyIds: params.studyIds,
-      slots,
-      validations: [],
+      slots: topSlots,
+      validations: validaciones,
       weeklyHours: { open: horaApertura, close: horaCierre },
-      source: 'historical' as const,
-      message: slots.length === 0
+      totalCitasDia,
+      ordenRecomendado: ordenOptimo,
+      source: 'smart' as const,
+      message: topSlots.length === 0
         ? esHoy
           ? 'Ya no hay horarios disponibles hoy. Elige otro dia.'
           : `Sin horarios disponibles los ${diaNombre}.`
@@ -590,90 +651,6 @@ export class SchedulingService {
     };
   }
 
-  /**
-   * Genera slots horarios usando solo datos historicos de la BD.
-   * Penaliza horas pico (mañana 7-9, mediodia 12-14) sumando ~30% de
-   * espera extra; horas valle reducen 30%. Devuelve los topN ordenados
-   * por menor tiempo total estimado.
-   */
-  private generarSlotsHeuristicos(opts: {
-    fecha: string;
-    horaApertura: number;
-    horaCierre: number;
-    horaMinHoy: number;
-    esperaHistTotal: number;
-    atencionTotal: number;
-    studyIds: number[];
-    topN: number;
-    duracionEstimadaMin: number;
-  }) {
-    const margenHoras = Math.max(1, Math.ceil(opts.duracionEstimadaMin / 60));
-    const horaInicio = Math.max(opts.horaApertura, opts.horaMinHoy);
-    const horaMax = opts.horaCierre - margenHoras;
-    const slots: Array<{
-      date: string;
-      hour: number;
-      time: string;
-      waitMin: number;
-      serviceMin: number;
-      totalEstimatedMin: number;
-      saturationLevel: 'bajo' | 'medio' | 'alto' | 'critico';
-      score: number;
-      reason: string;
-      orderedStudyIds: number[];
-    }> = [];
-
-    for (let hora = horaInicio; hora <= horaMax; hora++) {
-      // Multiplicador de saturacion historica: pico = mas espera.
-      let mult = 1.0;
-      let razon = 'horario tranquilo';
-      if (hora >= 7 && hora <= 9) {
-        mult = 1.35;
-        razon = 'hora pico mañana';
-      } else if (hora >= 12 && hora <= 14) {
-        mult = 1.2;
-        razon = 'mediodia ocupado';
-      } else if (hora >= 16 && hora <= 18) {
-        mult = 1.1;
-        razon = 'tarde con afluencia';
-      } else if (hora >= 6 && hora < 7) {
-        mult = 0.7;
-        razon = 'apertura, sin gente';
-      } else if (hora === 10 || hora === 11) {
-        mult = 0.85;
-        razon = 'media manana, ideal';
-      } else if (hora >= 15 && hora < 16) {
-        mult = 0.85;
-        razon = 'inicio tarde';
-      }
-
-      const espera = Math.round(opts.esperaHistTotal * mult);
-      const total = espera + opts.atencionTotal;
-
-      let nivel: 'bajo' | 'medio' | 'alto' | 'critico' = 'bajo';
-      if (espera > 35) nivel = 'critico';
-      else if (espera > 25) nivel = 'alto';
-      else if (espera > 15) nivel = 'medio';
-
-      slots.push({
-        date: opts.fecha,
-        hour: hora,
-        time: `${String(hora).padStart(2, '0')}:00`,
-        waitMin: espera,
-        serviceMin: opts.atencionTotal,
-        totalEstimatedMin: total,
-        saturationLevel: nivel,
-        score: total / 200, // pseudo-score normalizado
-        reason: razon,
-        orderedStudyIds: opts.studyIds,
-      });
-    }
-
-    slots.sort((a, b) => a.totalEstimatedMin - b.totalEstimatedMin);
-    return slots.slice(0, opts.topN);
-  }
-
-  // ──────────────────────────────────────────────
   // 5) Scheduler global de sucursal (in-memory clinic)
   // ──────────────────────────────────────────────
   /**
