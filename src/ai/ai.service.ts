@@ -39,8 +39,15 @@ export class AiService {
   private readonly timeoutMs: number;
 
   constructor() {
-    this.baseUrl = (process.env.AI_SERVICE_URL ?? 'http://localhost:8000').replace(/\/$/, '');
-    this.timeoutMs = Number(process.env.AI_SERVICE_TIMEOUT_MS ?? 5000);
+    // Normaliza AI_SERVICE_URL: si la variable de entorno viene sin
+    // esquema (ej: "orquestador-atenciondigna-production.up.railway.app"),
+    // anteponemos https:// para que `fetch` no truene con
+    // "Failed to parse URL". Tambien quita la barra final.
+    const raw = (process.env.AI_SERVICE_URL ?? 'http://localhost:8000').trim();
+    const withScheme = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+    this.baseUrl = withScheme.replace(/\/$/, '');
+    // 20s default — Railway puede tardar varios segundos en cold start.
+    this.timeoutMs = Number(process.env.AI_SERVICE_TIMEOUT_MS ?? 20000);
     this.logger.log(`AI service base URL: ${this.baseUrl}`);
   }
 
@@ -67,7 +74,9 @@ export class AiService {
 
       if (!res.ok) {
         const body = await res.text().catch(() => '');
-        this.logger.warn(`AI ${res.status} ${path} — ${body}`);
+        // No spammeamos como WARN cuando el servicio IA esta caido (404 de
+        // Railway). Los consumidores ya tienen fallback historico.
+        this.logger.debug(`AI ${res.status} ${path} — ${body}`);
         throw new HttpException(
           `Error del servicio IA (${res.status}): ${body || res.statusText}`,
           res.status as HttpStatus,
@@ -186,10 +195,54 @@ export class AiService {
     );
   }
 
-  clinicSnapshot(idSucursal: number): Promise<ClinicSnapshotResponse> {
-    return this.request<ClinicSnapshotResponse>(
-      `/scheduler/clinic/${idSucursal}/snapshot`,
-    );
+  /**
+   * Snapshot vivo del modelo IA para una sucursal.
+   *
+   * Estrategia:
+   *   1. Intenta `/scheduler/clinic/:id/snapshot` (scheduler global con
+   *      estado en memoria — version reciente del microservicio).
+   *   2. Si no existe (deploy viejo), cae a `/sucursal/:id/saturacion`,
+   *      que predice tiempos por estudio con XGBoost. Mapea la respuesta
+   *      al mismo formato `ClinicSnapshotResponse` esperado por el resto
+   *      del backend.
+   *
+   * Resultado: el catalogo siempre muestra tiempos vivos del modelo IA
+   * mientras al menos uno de los dos endpoints este disponible.
+   */
+  async clinicSnapshot(idSucursal: number): Promise<ClinicSnapshotResponse> {
+    try {
+      return await this.request<ClinicSnapshotResponse>(
+        `/scheduler/clinic/${idSucursal}/snapshot`,
+      );
+    } catch (_) {
+      // Fallback: usamos /sucursal/:id/saturacion (que si existe en el deploy actual)
+      const ahora = new Date();
+      const hora = ahora.getHours();
+      // 0 = Lunes ... 6 = Domingo (mismo encoding que el modelo Python)
+      const diaSemana = (ahora.getDay() + 6) % 7;
+      const sat = await this.saturacion(idSucursal, hora, diaSemana);
+      return {
+        id_sucursal: sat.id_sucursal,
+        now_min: 0,
+        salas: sat.estudios.map((s) => ({
+          id_estudio: s.id_estudio,
+          nombre_estudio: s.nombre_estudio,
+          capacidad: 1,
+          ocupados: 0,
+          libres: 1,
+          cola_pacientes: 0,
+          tiempo_servicio_min: 0,
+          tiempo_espera_estimado_min: s.tiempo_espera_pred_min,
+          nivel_saturacion: s.nivel_saturacion,
+        })),
+        pacientes_activos: 0,
+        espera_promedio_actual_min:
+          sat.estudios.reduce(
+            (acc, s) => acc + s.tiempo_espera_pred_min,
+            0,
+          ) / Math.max(sat.estudios.length, 1),
+      };
+    }
   }
 
   clinicPlan(idSucursal: number): Promise<GlobalPlanResponse> {

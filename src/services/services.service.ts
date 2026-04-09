@@ -178,10 +178,11 @@ export class ServicesService {
         ]),
       );
     } catch (e) {
-      this.logger.warn(
+      // No spammeamos el log: solo verbose en debug.
+      this.logger.debug(
         `IA no disponible para snapshot de sucursal ${SUCURSAL_MVP_ID}: ${
           e instanceof Error ? e.message : String(e)
-        } — el cliente vera tiempos historicos.`,
+        } — fallback a tiempos historicos.`,
       );
     }
 

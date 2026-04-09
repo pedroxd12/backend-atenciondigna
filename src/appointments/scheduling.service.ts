@@ -463,39 +463,167 @@ export class SchedulingService {
       0,
     );
 
-    const propuesta = await this.ai.optimalSlot({
-      id_sucursal: params.branchId,
+    // Tiempo de espera HISTORICO promedio de los estudios (BD)
+    const estudiosFull = await this.prisma.estudios.findMany({
+      where: { id: { in: params.studyIds } },
+      select: {
+        id: true,
+        tiempo_atencion_promedio_min: true,
+        tiempo_espera_promedio_min: true,
+      },
+    });
+    const esperaHistTotal = estudiosFull.reduce(
+      (acc, e) => acc + (e.tiempo_espera_promedio_min ?? 20),
+      0,
+    );
+
+    // 1) INTENTAR el modelo IA. Si responde, usamos sus slots.
+    try {
+      const propuesta = await this.ai.optimalSlot({
+        id_sucursal: params.branchId,
+        fecha: params.date,
+        estudios: params.studyIds,
+        hora_apertura: horaApertura,
+        hora_cierre: horaCierre,
+        duracion_estimada_min: Math.max(45, tiempoAtencionTotal + 30),
+        top_n: params.topN,
+      });
+      return {
+        branchId: params.branchId,
+        date: params.date,
+        studyIds: params.studyIds,
+        slots: propuesta.slots.map((s) => {
+          const espera = Math.round(s.tiempo_total_estimado_min);
+          const atencion = Math.round(tiempoAtencionTotal);
+          return {
+            date: s.fecha,
+            hour: s.hora,
+            time: `${String(s.hora).padStart(2, '0')}:00`,
+            waitMin: espera,
+            serviceMin: atencion,
+            totalEstimatedMin: espera + atencion,
+            saturationLevel: s.nivel_saturacion_promedio,
+            score: s.score,
+            reason: s.razon,
+            orderedStudyIds: s.orden_recomendado,
+          };
+        }),
+        validations: propuesta.validaciones,
+        weeklyHours: { open: horaApertura, close: horaCierre },
+        source: 'ai' as const,
+      };
+    } catch (e) {
+      this.logger.warn(
+        `IA caida para slots ${params.branchId}/${params.date}: ${
+          e instanceof Error ? e.message : String(e)
+        } — fallback a heuristica BD.`,
+      );
+    }
+
+    // 2) FALLBACK heuristico SIN modelo IA: generamos slots por hora,
+    //    asignamos saturacion segun la franja del dia y devolvemos tiempos
+    //    historicos de la BD. Asi la app NUNCA se queda sin horarios.
+    const slots = this.generarSlotsHeuristicos({
       fecha: params.date,
-      estudios: params.studyIds,
-      hora_apertura: horaApertura,
-      hora_cierre: horaCierre,
-      duracion_estimada_min: Math.max(45, tiempoAtencionTotal + 30),
-      top_n: params.topN,
+      horaApertura,
+      horaCierre,
+      esperaHistTotal,
+      atencionTotal: Math.round(tiempoAtencionTotal),
+      studyIds: params.studyIds,
+      topN: params.topN,
+      duracionEstimadaMin: Math.max(45, tiempoAtencionTotal + 30),
     });
 
     return {
       branchId: params.branchId,
       date: params.date,
       studyIds: params.studyIds,
-      slots: propuesta.slots.map((s) => {
-        const espera = Math.round(s.tiempo_total_estimado_min);
-        const atencion = Math.round(tiempoAtencionTotal);
-        return {
-          date: s.fecha,
-          hour: s.hora,
-          time: `${String(s.hora).padStart(2, '0')}:00`,
-          waitMin: espera,
-          serviceMin: atencion,
-          totalEstimatedMin: espera + atencion,
-          saturationLevel: s.nivel_saturacion_promedio,
-          score: s.score,
-          reason: s.razon,
-          orderedStudyIds: s.orden_recomendado,
-        };
-      }),
-      validations: propuesta.validaciones,
+      slots,
+      validations: [],
       weeklyHours: { open: horaApertura, close: horaCierre },
+      source: 'historical' as const,
     };
+  }
+
+  /**
+   * Genera slots horarios usando solo datos historicos de la BD.
+   * Penaliza horas pico (mañana 7-9, mediodia 12-14) sumando ~30% de
+   * espera extra; horas valle reducen 30%. Devuelve los topN ordenados
+   * por menor tiempo total estimado.
+   */
+  private generarSlotsHeuristicos(opts: {
+    fecha: string;
+    horaApertura: number;
+    horaCierre: number;
+    esperaHistTotal: number;
+    atencionTotal: number;
+    studyIds: number[];
+    topN: number;
+    duracionEstimadaMin: number;
+  }) {
+    const margenHoras = Math.max(1, Math.ceil(opts.duracionEstimadaMin / 60));
+    const horaMax = Math.max(opts.horaApertura + 1, opts.horaCierre - margenHoras);
+    const slots: Array<{
+      date: string;
+      hour: number;
+      time: string;
+      waitMin: number;
+      serviceMin: number;
+      totalEstimatedMin: number;
+      saturationLevel: 'bajo' | 'medio' | 'alto' | 'critico';
+      score: number;
+      reason: string;
+      orderedStudyIds: number[];
+    }> = [];
+
+    for (let hora = opts.horaApertura; hora <= horaMax; hora++) {
+      // Multiplicador de saturacion historica: pico = mas espera.
+      let mult = 1.0;
+      let razon = 'horario tranquilo';
+      if (hora >= 7 && hora <= 9) {
+        mult = 1.35;
+        razon = 'hora pico mañana';
+      } else if (hora >= 12 && hora <= 14) {
+        mult = 1.2;
+        razon = 'mediodia ocupado';
+      } else if (hora >= 16 && hora <= 18) {
+        mult = 1.1;
+        razon = 'tarde con afluencia';
+      } else if (hora >= 6 && hora < 7) {
+        mult = 0.7;
+        razon = 'apertura, sin gente';
+      } else if (hora === 10 || hora === 11) {
+        mult = 0.85;
+        razon = 'media manana, ideal';
+      } else if (hora >= 15 && hora < 16) {
+        mult = 0.85;
+        razon = 'inicio tarde';
+      }
+
+      const espera = Math.round(opts.esperaHistTotal * mult);
+      const total = espera + opts.atencionTotal;
+
+      let nivel: 'bajo' | 'medio' | 'alto' | 'critico' = 'bajo';
+      if (espera > 35) nivel = 'critico';
+      else if (espera > 25) nivel = 'alto';
+      else if (espera > 15) nivel = 'medio';
+
+      slots.push({
+        date: opts.fecha,
+        hour: hora,
+        time: `${String(hora).padStart(2, '0')}:00`,
+        waitMin: espera,
+        serviceMin: opts.atencionTotal,
+        totalEstimatedMin: total,
+        saturationLevel: nivel,
+        score: total / 200, // pseudo-score normalizado
+        reason: razon,
+        orderedStudyIds: opts.studyIds,
+      });
+    }
+
+    slots.sort((a, b) => a.totalEstimatedMin - b.totalEstimatedMin);
+    return slots.slice(0, opts.topN);
   }
 
   // ──────────────────────────────────────────────
