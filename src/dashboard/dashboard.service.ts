@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import type {
+	ColaItemDto,
+	ServicioColaDto,
+	ReservacionRecienteDto,
+} from './dto/cola-item.dto';
 
 @Injectable()
 export class DashboardService {
@@ -12,7 +17,7 @@ export class DashboardService {
 		return `${hh}:${mm}`;
 	}
 
-	async getReservacionesRecientes() {
+	async getReservacionesRecientes(): Promise<ReservacionRecienteDto[]> {
 		const reservaciones = await this.prisma.reservaciones.findMany({
 			take: 5,
 			orderBy: { created_at: 'desc' },
@@ -93,23 +98,41 @@ export class DashboardService {
 		return citaMin < ahoraMin ? 'retrasado' : estado;
 	}
 
-	private mapColaItem(r: any) {
-		const primerServicio = r.reservaciones_servicios?.[0];
+	/**
+	 * Mapea una reservacion con sus relaciones a un ColaItemDto estandarizado.
+	 * Incluye TODOS los servicios de la reservacion para que el frontend
+	 * pueda agrupar por area/estudio.
+	 */
+	private mapColaItem(r: any): ColaItemDto {
+		const pacienteNombre = r.pacientes?.nombre ?? 'N/A';
+		const pacienteApellido = r.pacientes?.apellido_paterno ?? '';
+
+		const servicios: ServicioColaDto[] = (r.reservaciones_servicios ?? []).map((s: any) => ({
+			id_estudio: s.id_estudio,
+			estudio_nombre: s.estudios?.nombre ?? 'N/A',
+			id_subestudio: s.id_subestudio ?? null,
+			subestudio_nombre: s.subestudios?.nombre ?? null,
+			estado: s.estado,
+			orden_atencion: s.orden_atencion,
+			numero_turno: s.numero_turno ?? null,
+		}));
+
 		return {
 			id: r.id.toString(),
-			nombre_completo:
-				`${r.pacientes?.nombre ?? ''} ${r.pacientes?.apellido_paterno ?? ''}`.trim() ||
-				'N/A',
-			estudio_principal: primerServicio?.estudios?.nombre ?? 'N/A',
-			hora_cita: this.formatTimeToHHMM(r.hora_programada) ?? 'N/A',
+			id_paciente: r.id_paciente,
+			paciente_nombre: pacienteNombre,
+			paciente_apellido: pacienteApellido,
+			nombre_completo: `${pacienteNombre} ${pacienteApellido}`.trim() || 'N/A',
+			hora_cita: this.formatTimeToHHMM(r.hora_programada),
 			fecha_programada: r.fecha_programada.toISOString().split('T')[0],
 			estado: this.calcularEstado(r.estado, r.hora_programada),
 			origen: r.origen,
+			servicios,
 		};
 	}
 
 	/** Todos los pacientes con cita hoy (pendiente / en_espera) */
-	async getColaPacientes() {
+	async getColaPacientes(): Promise<ColaItemDto[]> {
 		const reservaciones = await this.prisma.reservaciones.findMany({
 			where: {
 				fecha_programada: { gte: this.hoySinHora(), lt: this.mayanaSinHora() },
@@ -118,12 +141,14 @@ export class DashboardService {
 			orderBy: [{ hora_programada: { sort: 'asc', nulls: 'last' } }],
 			include: {
 				pacientes: {
-					select: { nombre: true, apellido_paterno: true },
+					select: { id: true, nombre: true, apellido_paterno: true },
 				},
 				reservaciones_servicios: {
-					take: 1,
 					orderBy: { orden_atencion: 'asc' },
-					include: { estudios: { select: { nombre: true } } },
+					include: {
+						estudios: { select: { nombre: true } },
+						subestudios: { select: { nombre: true } },
+					},
 				},
 			},
 		});
@@ -132,7 +157,7 @@ export class DashboardService {
 	}
 
 	/** Solo pacientes cuya cita incluye el estudio indicado (filtro por servicio) */
-	async getColaPorServicio(id_estudio: number) {
+	async getColaPorServicio(id_estudio: number): Promise<ColaItemDto[]> {
 		const reservaciones = await this.prisma.reservaciones.findMany({
 			where: {
 				fecha_programada: { gte: this.hoySinHora(), lt: this.mayanaSinHora() },
@@ -142,13 +167,14 @@ export class DashboardService {
 			orderBy: [{ hora_programada: { sort: 'asc', nulls: 'last' } }],
 			include: {
 				pacientes: {
-					select: { nombre: true, apellido_paterno: true },
+					select: { id: true, nombre: true, apellido_paterno: true },
 				},
 				reservaciones_servicios: {
-					where: { id_estudio },
-					take: 1,
 					orderBy: { orden_atencion: 'asc' },
-					include: { estudios: { select: { nombre: true } } },
+					include: {
+						estudios: { select: { nombre: true } },
+						subestudios: { select: { nombre: true } },
+					},
 				},
 			},
 		});
