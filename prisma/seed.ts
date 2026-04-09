@@ -36,35 +36,54 @@ async function main() {
       })
     ).id;
 
-  const sucursalCount = await prisma.sucursales.count();
-  if (sucursalCount === 0) {
-    await prisma.sucursales.createMany({
-      data: [
-        {
-          id_ciudad: ciudadId,
-          nombre: 'Salud Digna Coyoacan',
-          direccion: 'Av. Universidad 1900, Coyoacan',
-          latitud: 19.3417,
-          longitud: -99.1612,
-        },
-        {
-          id_ciudad: ciudadId,
-          nombre: 'Salud Digna Del Valle',
-          direccion: 'Av. Universidad 800, Del Valle',
-          latitud: 19.3742,
-          longitud: -99.1647,
-        },
-        {
-          id_ciudad: ciudadId,
-          nombre: 'Salud Digna Centro',
-          direccion: 'Av. Insurgentes Sur 500, Roma Norte',
-          latitud: 19.4203,
-          longitud: -99.1655,
-        },
-      ],
-    });
-    console.log('  ✓ Sucursales creadas');
-  }
+  // ── Sucursal MVP: Coyoacan con id=46 ──
+  // Forzamos el id 46 para que coincida con SUCURSAL_MVP_ID del modelo
+  // de IA y de la app movil. Sin esto, /reservaciones/slots devuelve 404.
+  //
+  // Horario oficial Salud Digna Coyoacan:
+  //   - Lunes a Viernes: 6:00 - 19:00
+  //   - Sabado:           6:00 - 17:00
+  //   - Domingo:          6:00 - 14:00
+  // hora_apertura/hora_cierre guardan la ventana mas amplia (legacy, por
+  // si algun consumidor no lee horario_semanal).
+  const COYOACAN_ID = 46;
+  const HORARIO_COYOACAN = {
+    '0': { open: 6, close: 19 }, // Lunes
+    '1': { open: 6, close: 19 }, // Martes
+    '2': { open: 6, close: 19 }, // Miercoles
+    '3': { open: 6, close: 19 }, // Jueves
+    '4': { open: 6, close: 19 }, // Viernes
+    '5': { open: 6, close: 17 }, // Sabado
+    '6': { open: 6, close: 14 }, // Domingo
+  };
+  await prisma.sucursales.upsert({
+    where: { id: COYOACAN_ID },
+    update: {
+      nombre: 'Salud Digna Coyoacan',
+      direccion: 'Av. Universidad 1330, Del Valle, Coyoacan, CDMX',
+      latitud: 19.3568,
+      longitud: -99.1716,
+      hora_apertura: new Date('1970-01-01T06:00:00Z'),
+      hora_cierre: new Date('1970-01-01T19:00:00Z'),
+      horario_semanal: HORARIO_COYOACAN,
+      activa: true,
+    },
+    create: {
+      id: COYOACAN_ID,
+      id_ciudad: ciudadId,
+      nombre: 'Salud Digna Coyoacan',
+      direccion: 'Av. Universidad 1330, Del Valle, Coyoacan, CDMX',
+      latitud: 19.3568,
+      longitud: -99.1716,
+      hora_apertura: new Date('1970-01-01T06:00:00Z'),
+      hora_cierre: new Date('1970-01-01T19:00:00Z'),
+      horario_semanal: HORARIO_COYOACAN,
+      activa: true,
+    },
+  });
+  console.log(
+    `  ✓ Sucursal MVP Coyoacan (id=${COYOACAN_ID}) lista (L-V 6-19, S 6-17, D 6-14)`,
+  );
 
   // ── 2. Estudios base ──
   const estudiosBase = [
@@ -233,31 +252,50 @@ async function main() {
       `Total esperado en SEED: ${totalEsperado}. Total ahora en BD: ${totalEnBd}.`,
   );
 
-  // ── 3. Sucursal demo (la primera disponible) ──
-  const sucursalDemo = await prisma.sucursales.findFirst({
-    orderBy: { id: 'asc' },
+  // ── 3. Sucursal demo: forzamos Coyoacan (id=46) ──
+  const sucursalDemo = await prisma.sucursales.findUnique({
+    where: { id: COYOACAN_ID },
   });
-  if (!sucursalDemo) throw new Error('No hay sucursales en la BD');
+  if (!sucursalDemo) throw new Error('No se pudo crear la sucursal MVP');
 
-  // Consultorios (al menos 1 por estudio en la sucursal demo)
-  for (const e of estudiosBase) {
+  // Consultorios para TODAS las categorias del catalogo (no solo las base).
+  // Usamos las cantidades reales de la hoja "Consultorios x Clinica"
+  // del Excel para que el modelo de IA de Coyoacan tenga capacidad real.
+  const CONSULTORIOS_COYOACAN: Record<number, number> = {
+    1: 1, // DENSITOMETRIA
+    2: 1, // LABORATORIO
+    3: 1, // MASTOGRAFIA
+    4: 1, // PAPANICOLAOU
+    5: 1, // RAYOS X
+    6: 4, // ULTRASONIDO
+    9: 1, // ELECTROCARDIOGRAMA
+    11: 1, // TOMOGRAFIA
+    12: 1, // RESONANCIA MAGNETICA
+    16: 2, // NUTRICION
+    38: 1, // OPTICA
+    52: 1, // CONSULTA GENERAL
+  };
+
+  for (const cat of SEED_CATALOGO) {
+    const cantidad = CONSULTORIOS_COYOACAN[cat.id] ?? 1;
     await prisma.sucursales_consultorios.upsert({
       where: {
         id_sucursal_id_estudio: {
           id_sucursal: sucursalDemo.id,
-          id_estudio: e.id,
+          id_estudio: cat.id,
         },
       },
-      update: {},
+      update: { cantidad, activo: true },
       create: {
         id_sucursal: sucursalDemo.id,
-        id_estudio: e.id,
-        cantidad: 2,
-        area_nombre: `Area - ${e.nombre}`,
+        id_estudio: cat.id,
+        cantidad,
+        area_nombre: `Area - ${cat.nombre}`,
+        activo: true,
       },
     });
   }
-  console.log('  ✓ Consultorios');
+  console.log('  ✓ Consultorios de Coyoacan');
 
   // ── 4. Paciente demo ──
   await prisma.pacientes.upsert({

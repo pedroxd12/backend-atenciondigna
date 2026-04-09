@@ -306,6 +306,10 @@ model sucursales {
   mapa_geojson                   Json?
   hora_apertura                  DateTime?                        @db.Time(6)
   hora_cierre                    DateTime?                        @db.Time(6)
+  /// Horario por dia de la semana. Estructura:
+  /// { "0": { "open": 6, "close": 19 }, ..., "6": { "open": 6, "close": 14 } }
+  /// donde 0 = Lunes ... 6 = Domingo. Si es null se cae a hora_apertura/hora_cierre.
+  horario_semanal                Json?
   activa                         Boolean                          @default(true)
   created_at                     DateTime                         @default(now()) @db.Timestamptz(6)
   updated_at                     DateTime                         @default(now()) @db.Timestamptz(6)

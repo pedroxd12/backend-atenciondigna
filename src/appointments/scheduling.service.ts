@@ -414,8 +414,54 @@ export class SchedulingService {
       throw new BadRequestException('studyIds vacio');
     }
     const sucursal = await this.ensureBranch(params.branchId);
-    const horaApertura = this.hourFromTime(sucursal.hora_apertura) ?? 7;
-    const horaCierre = this.hourFromTime(sucursal.hora_cierre) ?? 20;
+
+    // Resolver horario para el dia de la semana del request.
+    // 0 = Lunes ... 6 = Domingo (mismo encoding que el modelo Python).
+    const fechaObj = new Date(`${params.date}T00:00:00`);
+    const jsDow = fechaObj.getDay(); // 0=Dom...6=Sab en JS
+    const dow = (jsDow + 6) % 7; // a 0=Lun...6=Dom
+
+    const horarioJson = sucursal.horario_semanal as
+      | Record<string, { open: number; close: number }>
+      | null
+      | undefined;
+    let horaApertura: number;
+    let horaCierre: number;
+    if (horarioJson && horarioJson[String(dow)]) {
+      horaApertura = horarioJson[String(dow)].open;
+      horaCierre = horarioJson[String(dow)].close;
+    } else {
+      horaApertura = this.hourFromTime(sucursal.hora_apertura) ?? 7;
+      horaCierre = this.hourFromTime(sucursal.hora_cierre) ?? 20;
+    }
+
+    if (horaApertura >= horaCierre) {
+      // Sucursal cerrada ese dia
+      return {
+        branchId: params.branchId,
+        date: params.date,
+        studyIds: params.studyIds,
+        slots: [],
+        validations: [],
+        message: 'La sucursal no abre este dia',
+        weeklyHours: { open: horaApertura, close: horaCierre },
+      };
+    }
+
+    // Tiempos de atencion REALES del catalogo (BD).
+    // El modelo IA solo predice tiempo de ESPERA. El total que ve el
+    // paciente debe ser: espera + atencion.
+    const estudios = await this.prisma.estudios.findMany({
+      where: { id: { in: params.studyIds } },
+      select: { id: true, tiempo_atencion_promedio_min: true },
+    });
+    const atencionPorEstudio = new Map<number, number>(
+      estudios.map((e) => [e.id, e.tiempo_atencion_promedio_min ?? 10]),
+    );
+    const tiempoAtencionTotal = params.studyIds.reduce(
+      (acc, id) => acc + (atencionPorEstudio.get(id) ?? 10),
+      0,
+    );
 
     const propuesta = await this.ai.optimalSlot({
       id_sucursal: params.branchId,
@@ -423,7 +469,7 @@ export class SchedulingService {
       estudios: params.studyIds,
       hora_apertura: horaApertura,
       hora_cierre: horaCierre,
-      duracion_estimada_min: 45,
+      duracion_estimada_min: Math.max(45, tiempoAtencionTotal + 30),
       top_n: params.topN,
     });
 
@@ -431,17 +477,24 @@ export class SchedulingService {
       branchId: params.branchId,
       date: params.date,
       studyIds: params.studyIds,
-      slots: propuesta.slots.map((s) => ({
-        date: s.fecha,
-        hour: s.hora,
-        time: `${String(s.hora).padStart(2, '0')}:00`,
-        totalEstimatedMin: s.tiempo_total_estimado_min,
-        saturationLevel: s.nivel_saturacion_promedio,
-        score: s.score,
-        reason: s.razon,
-        orderedStudyIds: s.orden_recomendado,
-      })),
+      slots: propuesta.slots.map((s) => {
+        const espera = Math.round(s.tiempo_total_estimado_min);
+        const atencion = Math.round(tiempoAtencionTotal);
+        return {
+          date: s.fecha,
+          hour: s.hora,
+          time: `${String(s.hora).padStart(2, '0')}:00`,
+          waitMin: espera,
+          serviceMin: atencion,
+          totalEstimatedMin: espera + atencion,
+          saturationLevel: s.nivel_saturacion_promedio,
+          score: s.score,
+          reason: s.razon,
+          orderedStudyIds: s.orden_recomendado,
+        };
+      }),
       validations: propuesta.validaciones,
+      weeklyHours: { open: horaApertura, close: horaCierre },
     };
   }
 

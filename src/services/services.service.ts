@@ -30,10 +30,16 @@ export interface CatalogoCategoriaDto {
   icono: string;
   descripcion: string;
   preparacion: string;
+  /** Tiempo de atencion (consultorio efectivo) — viene de la BD. */
   tiempoServicioMin: number;
+  /** Tiempo promedio de espera historico — viene de la BD. */
   tiempoEsperaPromedioMin: number;
+  /** Espera promedio + atencion = experiencia total estimada (historico). */
+  tiempoTotalPromedioMin: number;
   /** Tiempo de espera vivo del modelo IA. Null si el modelo no respondio. */
   tiempoEsperaActualMin: number | null;
+  /** Espera vivo + atencion = experiencia total VIVA. Null si no hay vivo. */
+  tiempoTotalActualMin: number | null;
   /** Nivel de saturacion en vivo del modelo IA. Null si no respondio. */
   saturacionActual: 'bajo' | 'medio' | 'alto' | 'critico' | null;
   items: ServicioDto[];
@@ -186,15 +192,21 @@ export class ServicesService {
       const items = itemsByEstudio.get(e.id) ?? [];
       if (items.length === 0) continue;
       const live = snapshotByEstudio.get(e.id);
+      const atencion = e.tiempo_atencion_promedio_min ?? 15;
+      const esperaProm = e.tiempo_espera_promedio_min;
+      const esperaActual = live?.tiempoEsperaActualMin ?? null;
       out.push({
         idEstudio: e.id,
         nombre: e.nombre,
         icono: this.iconForEstudio(e.nombre),
         descripcion: this.descripcionFor(e.nombre),
         preparacion: this.preparacionFor(e.nombre),
-        tiempoServicioMin: e.tiempo_atencion_promedio_min ?? 15,
-        tiempoEsperaPromedioMin: e.tiempo_espera_promedio_min,
-        tiempoEsperaActualMin: live?.tiempoEsperaActualMin ?? null,
+        tiempoServicioMin: atencion,
+        tiempoEsperaPromedioMin: esperaProm,
+        tiempoTotalPromedioMin: esperaProm + atencion,
+        tiempoEsperaActualMin: esperaActual,
+        tiempoTotalActualMin:
+          esperaActual !== null ? Math.round(esperaActual + atencion) : null,
         saturacionActual:
           (live?.nivel as CatalogoCategoriaDto['saturacionActual']) ?? null,
         items,
