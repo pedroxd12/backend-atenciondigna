@@ -535,9 +535,27 @@ export class SchedulingService {
       ? (horaApertura + 4) * 60  // ej: 10:00 AM en minutos
       : Infinity;
 
-    // ── Intervalo de slots: basado en el servicio mas corto, min 5 min ──
+    // ── Conteo rapido de citas del dia (para decidir granularidad) ──
+    const fechaStartPre = new Date(`${params.date}T00:00:00Z`);
+    const fechaEndPre = new Date(`${params.date}T23:59:59Z`);
+    const citasCountDia = await this.prisma.reservaciones.count({
+      where: {
+        id_sucursal: params.branchId,
+        fecha_programada: { gte: fechaStartPre, lte: fechaEndPre },
+        estado: { in: ['pendiente', 'confirmada', 'en_proceso'] },
+      },
+    });
+
+    // ── Intervalo de slots ──
+    // Con pocas citas el paciente no necesita granularidad de 5 min —
+    // espaciamos a 30 min para ofrecer opciones visualmente distintas
+    // y evitar 12 tarjetas identicas. Con mas carga, usamos intervalos
+    // finos para aprovechar huecos reales de capacidad.
     const serviceTimes = params.studyIds.map(id => atencionMap.get(id) ?? 10);
-    const intervalo = Math.max(5, Math.min(...serviceTimes));
+    const intervaloBase = Math.max(5, Math.min(...serviceTimes));
+    const intervalo = citasCountDia < 5
+      ? Math.max(30, intervaloBase)
+      : intervaloBase;
 
     // ── Orden recomendado (sin prep primero + secuencias) ──
     const sinPrep = params.studyIds.filter(id => !prepMap.get(id));
@@ -736,8 +754,7 @@ export class SchedulingService {
 
       let tag = '';
       let recommended = false;
-      if (citasEnVentana === 0 && nivel === 'bajo') { tag = 'Recomendado'; recommended = true; }
-      else if (citasEnVentana <= 2 && (nivel === 'bajo' || nivel === 'medio')) { tag = 'Buena opcion'; }
+      if (citasEnVentana <= 2 && (nivel === 'bajo' || nivel === 'medio')) { tag = 'Buena opcion'; }
       else if (nivel === 'alto' || nivel === 'critico') { tag = 'Alta demanda'; }
 
       const total = esperaTotal + Math.round(tiempoAtencionTotal);
