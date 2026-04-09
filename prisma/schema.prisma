@@ -68,6 +68,9 @@ model estudios {
   requiere_orden_medica                                                Boolean                       @default(false)
   max_vigencia_muestra_min                                             Int?
   control_puntualidad                                                  Boolean                       @default(false)
+  /// Horas minimas de preparacion previas (ej: ayuno 8h → 480 min).
+  /// Null = sin restriccion de preparacion temporal.
+  preparacion_horas_min                                                Int?
   descripcion                                                          String?
   activo                                                               Boolean                       @default(true)
   created_at                                                           DateTime                      @default(now()) @db.Timestamptz(6)

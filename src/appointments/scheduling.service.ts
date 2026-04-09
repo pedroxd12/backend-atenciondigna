@@ -504,18 +504,34 @@ export class SchedulingService {
       ? cdmx.hours * 60 + cdmx.minutes + 30
       : 0;
 
-    // ── Datos de estudios de la BD ──
+    // ── Datos de estudios de la BD (tiempos REALES del Excel) ──
     const estudiosDB = await this.prisma.estudios.findMany({
       where: { id: { in: params.studyIds } },
     });
     const atencionMap = new Map(estudiosDB.map(e => [e.id, e.tiempo_atencion_promedio_min ?? 10]));
     const esperaMap = new Map(estudiosDB.map(e => [e.id, e.tiempo_espera_promedio_min ?? 20]));
     const prepMap = new Map(estudiosDB.map(e => [e.id, e.requiere_preparacion]));
+    const prepHorasMap = new Map(estudiosDB.map(e => [e.id, e.preparacion_horas_min ?? 0]));
+    const puntualidadMap = new Map(estudiosDB.map(e => [e.id, e.control_puntualidad]));
     const tiempoAtencionTotal = params.studyIds.reduce((a, id) => a + (atencionMap.get(id) ?? 10), 0);
 
-    // ── Intervalo de slots: basado en el servicio mas corto, min 10 min ──
+    // ── Restriccion de preparacion ──
+    // Si algun estudio requiere ayuno de N horas, la cita solo puede ser
+    // en las primeras horas del dia (el paciente duerme = ayuna).
+    // Ej: Lab requiere 8h ayuno → max hora = apertura + 4h = 10:00
+    // (asumiendo que cenaron a las 10 PM y durmieron 8h+)
+    const maxPrepHoras = Math.max(0, ...params.studyIds.map(id => prepHorasMap.get(id) ?? 0));
+    // hora limite para estudios con ayuno: la clinica abre a las 6, si
+    // requiere 8h de ayuno, la ultima cena fue a las 10 PM, el paciente
+    // puede ir hasta ~10 AM sin romper el ayuno. Regla practica:
+    // hora_limite = apertura + 4 horas (si requiere ayuno >= 6h)
+    const horaLimitePrep = maxPrepHoras >= 6
+      ? (horaApertura + 4) * 60  // ej: 10:00 AM en minutos
+      : Infinity;
+
+    // ── Intervalo de slots: basado en el servicio mas corto, min 5 min ──
     const serviceTimes = params.studyIds.map(id => atencionMap.get(id) ?? 10);
-    const intervalo = Math.max(10, Math.min(...serviceTimes));
+    const intervalo = Math.max(5, Math.min(...serviceTimes));
 
     // ── Orden recomendado (sin prep primero + secuencias) ──
     const sinPrep = params.studyIds.filter(id => !prepMap.get(id));
@@ -536,27 +552,37 @@ export class SchedulingService {
       if (!changed) break;
     }
 
-    // ── Validaciones por reglas de negocio ──
+    // ── Validaciones por reglas de negocio (desde los datos de la BD) ──
     const validaciones: Array<{ regla: string; severidad: string; mensaje: string; accion?: string }> = [];
+
+    // Validacion generica de preparacion temporal
+    if (maxPrepHoras >= 6) {
+      validaciones.push({
+        regla: 'preparacion.ayuno', severidad: 'warning',
+        mensaje: `Uno de tus estudios requiere ayuno de ${maxPrepHoras} horas. Solo puedes agendar entre ${horaApertura}:00 y ${Math.floor(horaLimitePrep / 60)}:00.`,
+        accion: 'Asegurate de no comer ni beber (excepto agua) desde la noche anterior.',
+      });
+    }
+
     for (const e of estudiosDB) {
       const n = e.nombre.toUpperCase();
-      if (n.includes('MASTOGRAFIA') || n.includes('MASTOGRAFÍA')) {
+      // Descripcion del estudio como preparacion
+      if (e.descripcion) {
         validaciones.push({
-          regla: 'mastografia.preparacion', severidad: 'info',
-          mensaje: 'No uses desodorante, talco ni cremas el dia del estudio.',
-          accion: 'Si tienes menos de 35 anos, trae orden medica de especialista.',
+          regla: `${n.toLowerCase()}.preparacion`, severidad: 'info',
+          mensaje: `${e.nombre}: ${e.descripcion}`,
         });
       }
-      if (n.includes('TOMOGRAFIA') || n.includes('TOMOGRAFÍA') || n.includes('RESONANCIA')) {
+      if (e.control_puntualidad) {
         validaciones.push({
           regla: 'puntualidad.estricta', severidad: 'warning',
-          mensaje: `${e.nombre}: debes llegar puntual o se reasignara tu cita.`,
+          mensaje: `${e.nombre}: debes llegar puntual. Si no llegas a la hora se te reasigna la cita.`,
         });
       }
-      if (n.includes('LABORATORIO')) {
+      if (n.includes('MASTOGRAFIA') || n.includes('MASTOGRAFÍA')) {
         validaciones.push({
-          regla: 'laboratorio.ayuno', severidad: 'info',
-          mensaje: 'Requiere ayuno de 8-12 horas. Si traes orina, max 2 horas de recolectada.',
+          regla: 'mastografia.edad', severidad: 'info',
+          mensaje: 'Si tienes menos de 35 anos o tu ultima mastografia fue hace menos de 6 meses, necesitas orden de especialista.',
         });
       }
       if (n.includes('PAPANICOLAOU')) {
@@ -637,6 +663,10 @@ export class SchedulingService {
       const m = Math.ceil(minuto / intervalo) * intervalo;
       if (m > cierreMin) break;
       if (allSlots.length > 0 && allSlots[allSlots.length - 1].time === fmtMin(m)) continue;
+
+      // Restriccion de preparacion: si requiere ayuno, no ofrecer
+      // horarios despues de la hora limite (ej: 10 AM para ayuno 8h)
+      if (m > horaLimitePrep) continue;
 
       // Verificar que TODOS los estudios tengan capacidad en este momento
       // (el primer estudio empieza en m, los siguientes se encadenan)

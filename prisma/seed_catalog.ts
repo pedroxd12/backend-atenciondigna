@@ -14,7 +14,7 @@ export const SEED_CATALOGO: SeedCategoria[] = [
     id: 2,
     nombre: 'LABORATORIO',
     tiempoServicioMin: 5,
-    tiempoEsperaPromedioMin: 20,
+    tiempoEsperaPromedioMin: 12,
     items: [
       { nombre: 'Paquete anticuerpos anti sarampion igg e igm', precio: 390.0 },
       { nombre: 'Paquete anticuerpos anti sarampion igm', precio: 220.0 },
@@ -79,7 +79,7 @@ export const SEED_CATALOGO: SeedCategoria[] = [
     id: 4,
     nombre: 'PAPANICOLAOU',
     tiempoServicioMin: 8,
-    tiempoEsperaPromedioMin: 20,
+    tiempoEsperaPromedioMin: 10,
     items: [
       { nombre: 'Paquete papanicolaou+vph por pcr', precio: 335.0 },
       { nombre: 'Paquete ginecologico completo', precio: 850.0 },
@@ -92,7 +92,7 @@ export const SEED_CATALOGO: SeedCategoria[] = [
     id: 5,
     nombre: 'RAYOS X',
     tiempoServicioMin: 10,
-    tiempoEsperaPromedioMin: 30,
+    tiempoEsperaPromedioMin: 9,
     items: [
       { nombre: 'Paquete aviacion - inicial', precio: 1206.0 },
       { nombre: 'Mano ap', precio: 215.0 },
@@ -314,7 +314,7 @@ export const SEED_CATALOGO: SeedCategoria[] = [
     id: 6,
     nombre: 'ULTRASONIDO',
     tiempoServicioMin: 15,
-    tiempoEsperaPromedioMin: 30,
+    tiempoEsperaPromedioMin: 13,
     items: [
       { nombre: 'Ultrasonido abdominal', precio: 550.0 },
       { nombre: 'Ultrasonido pelvico', precio: 480.0 },
@@ -330,7 +330,7 @@ export const SEED_CATALOGO: SeedCategoria[] = [
     id: 9,
     nombre: 'ELECTROCARDIOGRAMA',
     tiempoServicioMin: 7,
-    tiempoEsperaPromedioMin: 20,
+    tiempoEsperaPromedioMin: 9,
     items: [
       { nombre: 'Mastografia + electro', precio: 365.0 },
       { nombre: 'Electrocardiograma', precio: 135.0 },
@@ -340,7 +340,7 @@ export const SEED_CATALOGO: SeedCategoria[] = [
     id: 11,
     nombre: 'TOMOGRAFIA',
     tiempoServicioMin: 20,
-    tiempoEsperaPromedioMin: 30,
+    tiempoEsperaPromedioMin: 20,
     items: [
       { nombre: 'Tomografia simple de craneo', precio: 2200.0 },
       { nombre: 'Tomografia simple de torax', precio: 2400.0 },
@@ -354,7 +354,7 @@ export const SEED_CATALOGO: SeedCategoria[] = [
     id: 12,
     nombre: 'RESONANCIA MAGNETICA',
     tiempoServicioMin: 30,
-    tiempoEsperaPromedioMin: 40,
+    tiempoEsperaPromedioMin: 24,
     items: [
       { nombre: 'Resonancia de cerebro', precio: 4200.0 },
       { nombre: 'Resonancia de columna cervical', precio: 4200.0 },
@@ -368,7 +368,7 @@ export const SEED_CATALOGO: SeedCategoria[] = [
     id: 16,
     nombre: 'NUTRICION',
     tiempoServicioMin: 15,
-    tiempoEsperaPromedioMin: 20,
+    tiempoEsperaPromedioMin: 19,
     items: [
       { nombre: 'Paquete embarazo sano TRIM I', precio: 475.0 },
       { nombre: 'Paquete embarazo sano TRIM II y III', precio: 475.0 },
@@ -380,7 +380,7 @@ export const SEED_CATALOGO: SeedCategoria[] = [
     id: 3,
     nombre: 'MASTOGRAFIA',
     tiempoServicioMin: 8,
-    tiempoEsperaPromedioMin: 20,
+    tiempoEsperaPromedioMin: 15,
     items: [
       { nombre: 'Mastografia bilateral', precio: 695.0 },
       { nombre: 'Mastografia + densitometria', precio: 335.0 },
@@ -393,7 +393,7 @@ export const SEED_CATALOGO: SeedCategoria[] = [
     id: 1,
     nombre: 'DENSITOMETRIA',
     tiempoServicioMin: 12,
-    tiempoEsperaPromedioMin: 20,
+    tiempoEsperaPromedioMin: 15,
     items: [
       { nombre: 'Mastografia + densitometria', precio: 335.0 },
       { nombre: 'Paquete integral mujer', precio: 630.0 },
@@ -413,7 +413,7 @@ export const SEED_CATALOGO: SeedCategoria[] = [
     id: 38,
     nombre: 'OPTICA',
     tiempoServicioMin: 12,
-    tiempoEsperaPromedioMin: 20,
+    tiempoEsperaPromedioMin: 9,
     items: [
       { nombre: 'Examen visual completo', precio: 150.0 },
       { nombre: 'Lentes de contacto - adaptacion', precio: 350.0 },
@@ -425,7 +425,7 @@ export const SEED_CATALOGO: SeedCategoria[] = [
     id: 52,
     nombre: 'CONSULTA GENERAL',
     tiempoServicioMin: 15,
-    tiempoEsperaPromedioMin: 20,
+    tiempoEsperaPromedioMin: 15,
     items: [
       { nombre: 'Consulta medica general', precio: 130.0 },
       { nombre: 'Consulta de seguimiento', precio: 100.0 },

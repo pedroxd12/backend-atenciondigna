@@ -85,59 +85,184 @@ async function main() {
     `  ✓ Sucursal MVP Coyoacan (id=${COYOACAN_ID}) lista (L-V 6-19, S 6-17, D 6-14)`,
   );
 
-  // ── 2. Estudios base ──
-  const estudiosBase = [
+  // ── 2. Estudios base (datos REALES del Excel "Recursos Hackthon 2026") ──
+  // Tiempos de espera: hoja "Promedios Espera" filtrado IdSucursal=46 (Coyoacan)
+  // Tiempos de atencion: hoja "Tiempos promedio"
+  // Consultorios: hoja "Consultorios x Clinica" filtrado IdSucursal=46
+  // "Variable" en atencion se estima: RayosX=10, US=15, Tomo=20, RM=30, Optica=12
+  const estudiosBase: Array<{
+    id: number; nombre: string;
+    tiempo_espera_promedio_min: number;
+    tiempo_atencion_promedio_min: number;
+    tiempo_atencion_variable: boolean;
+    requiere_preparacion: boolean;
+    requiere_orden_medica: boolean;
+    control_puntualidad: boolean;
+    max_vigencia_muestra_min: number | null;
+    preparacion_horas_min: number | null;
+    descripcion: string;
+  }> = [
     {
-      id: 2,
-      nombre: 'Laboratorio',
-      requiere_preparacion: true,
-      requiere_orden_medica: false,
-      tiempo_espera_promedio_min: 12,
-      max_vigencia_muestra_min: 120,
-      descripcion:
-        'Ayuno minimo de 8 horas. Llevar identificacion oficial. Hidratarse con agua simple',
+      id: 1, nombre: 'DENSITOMETRIA',
+      tiempo_espera_promedio_min: 15, tiempo_atencion_promedio_min: 12,
+      tiempo_atencion_variable: false,
+      requiere_preparacion: false, requiere_orden_medica: false,
+      control_puntualidad: false, max_vigencia_muestra_min: null,
+      preparacion_horas_min: null,
+      descripcion: 'Sin ropa con metales. Si tiene Tomo o RM con contraste, densitometria va PRIMERO.',
     },
     {
-      id: 5,
-      nombre: 'Rayos X',
-      requiere_preparacion: false,
-      requiere_orden_medica: true,
-      tiempo_espera_promedio_min: 8,
-      descripcion: 'Quitar objetos metalicos antes del estudio',
+      id: 2, nombre: 'LABORATORIO',
+      tiempo_espera_promedio_min: 12, tiempo_atencion_promedio_min: 5,
+      tiempo_atencion_variable: false,
+      requiere_preparacion: true, requiere_orden_medica: false,
+      control_puntualidad: false,
+      max_vigencia_muestra_min: 120, // orina max 2 horas
+      preparacion_horas_min: 8, // ayuno 8 horas
+      descripcion: 'Ayuno de 8-12 horas. Si trae orina de casa, max 2 horas desde recoleccion.',
     },
     {
-      id: 6,
-      nombre: 'Ultrasonido abdominal',
-      requiere_preparacion: true,
-      requiere_orden_medica: true,
-      tiempo_espera_promedio_min: 18,
-      descripcion:
-        'Tomar 1 litro de agua 1 hora antes. No orinar antes del estudio',
+      id: 3, nombre: 'MASTOGRAFIA',
+      tiempo_espera_promedio_min: 15, tiempo_atencion_promedio_min: 8,
+      tiempo_atencion_variable: false,
+      requiere_preparacion: true, requiere_orden_medica: false,
+      control_puntualidad: false, max_vigencia_muestra_min: null,
+      preparacion_horas_min: null,
+      descripcion: 'No desodorante/talco/cremas. Menores de 35 requieren orden de especialista.',
+    },
+    {
+      id: 4, nombre: 'PAPANICOLAOU',
+      tiempo_espera_promedio_min: 10, tiempo_atencion_promedio_min: 8,
+      tiempo_atencion_variable: false,
+      requiere_preparacion: true, requiere_orden_medica: false,
+      control_puntualidad: false, max_vigencia_muestra_min: null,
+      preparacion_horas_min: null,
+      descripcion: 'Sin cremas/ovulos/duchas vaginales 48h antes. No menstruando. Va ANTES de US transvaginal.',
+    },
+    {
+      id: 5, nombre: 'RAYOS X',
+      tiempo_espera_promedio_min: 9, tiempo_atencion_promedio_min: 10,
+      tiempo_atencion_variable: true,
+      requiere_preparacion: false, requiere_orden_medica: false,
+      control_puntualidad: false, max_vigencia_muestra_min: null,
+      preparacion_horas_min: null,
+      descripcion: 'Quitar objetos metalicos. Abdomen/columna: ayuno de 6h.',
+    },
+    {
+      id: 6, nombre: 'ULTRASONIDO',
+      tiempo_espera_promedio_min: 13, tiempo_atencion_promedio_min: 15,
+      tiempo_atencion_variable: true,
+      requiere_preparacion: true, requiere_orden_medica: false,
+      control_puntualidad: false, max_vigencia_muestra_min: null,
+      preparacion_horas_min: 6, // ayuno 6h para abdominal
+      descripcion: 'Abdominal: ayuno 6h. Pelvico: vejiga llena. Afectado por lab con ayuno → lab primero.',
+    },
+    {
+      id: 9, nombre: 'ELECTROCARDIOGRAMA',
+      tiempo_espera_promedio_min: 9, tiempo_atencion_promedio_min: 7,
+      tiempo_atencion_variable: false,
+      requiere_preparacion: false, requiere_orden_medica: false,
+      control_puntualidad: false, max_vigencia_muestra_min: null,
+      preparacion_horas_min: null,
+      descripcion: 'Sin regla especial. Evitar cafeina 4h antes.',
+    },
+    {
+      id: 11, nombre: 'TOMOGRAFIA',
+      tiempo_espera_promedio_min: 20, tiempo_atencion_promedio_min: 20,
+      tiempo_atencion_variable: true,
+      requiere_preparacion: true, requiere_orden_medica: false,
+      control_puntualidad: true,
+      max_vigencia_muestra_min: null,
+      preparacion_horas_min: 4, // ayuno 4h
+      descripcion: 'Preferentemente con cita. Puntualidad estricta o se reasigna. Ayuno 4h si contrastada.',
+    },
+    {
+      id: 12, nombre: 'RESONANCIA MAGNETICA',
+      tiempo_espera_promedio_min: 24, tiempo_atencion_promedio_min: 30,
+      tiempo_atencion_variable: true,
+      requiere_preparacion: true, requiere_orden_medica: false,
+      control_puntualidad: true,
+      max_vigencia_muestra_min: null,
+      preparacion_horas_min: 4, // ayuno 4h
+      descripcion: 'Sin objetos metalicos. Avisar implantes/marcapasos/claustrofobia. Puntualidad estricta.',
+    },
+    {
+      id: 16, nombre: 'NUTRICION',
+      tiempo_espera_promedio_min: 19, tiempo_atencion_promedio_min: 15,
+      tiempo_atencion_variable: false,
+      requiere_preparacion: false, requiere_orden_medica: false,
+      control_puntualidad: false, max_vigencia_muestra_min: null,
+      preparacion_horas_min: null,
+      descripcion: 'Sin regla especial. Traer estudios recientes.',
+    },
+    {
+      id: 24, nombre: 'OPTICA',
+      tiempo_espera_promedio_min: 9, tiempo_atencion_promedio_min: 12,
+      tiempo_atencion_variable: false,
+      requiere_preparacion: false, requiere_orden_medica: false,
+      control_puntualidad: false, max_vigencia_muestra_min: null,
+      preparacion_horas_min: null,
+      descripcion: 'Evitar lentes de contacto 24h antes.',
+    },
+    {
+      id: 52, nombre: 'CONSULTA GENERAL',
+      tiempo_espera_promedio_min: 15, tiempo_atencion_promedio_min: 15,
+      tiempo_atencion_variable: false,
+      requiere_preparacion: false, requiere_orden_medica: false,
+      control_puntualidad: false, max_vigencia_muestra_min: null,
+      preparacion_horas_min: null,
+      descripcion: 'Sin preparacion especial.',
     },
   ];
 
+  // Dos pasos para evitar conflictos con unique(id) + unique(nombre) + FKs:
+  // 1) Si ya existe una fila con ese nombre pero otro id → update por nombre
+  // 2) Si ya existe una fila con ese id → update por id
+  // 3) Si no existe → insert
   for (const e of estudiosBase) {
-    await prisma.estudios.upsert({
-      where: { id: e.id },
-      update: {
-        requiere_preparacion: e.requiere_preparacion,
-        requiere_orden_medica: e.requiere_orden_medica,
-        tiempo_espera_promedio_min: e.tiempo_espera_promedio_min,
-        descripcion: e.descripcion,
-        max_vigencia_muestra_min: e.max_vigencia_muestra_min ?? null,
-      },
-      create: {
-        id: e.id,
-        nombre: e.nombre,
-        requiere_preparacion: e.requiere_preparacion,
-        requiere_orden_medica: e.requiere_orden_medica,
-        tiempo_espera_promedio_min: e.tiempo_espera_promedio_min,
-        descripcion: e.descripcion,
-        max_vigencia_muestra_min: e.max_vigencia_muestra_min ?? null,
-      },
-    });
+    const fields = {
+      requiere_preparacion: e.requiere_preparacion,
+      requiere_orden_medica: e.requiere_orden_medica,
+      tiempo_espera_promedio_min: e.tiempo_espera_promedio_min,
+      tiempo_atencion_promedio_min: e.tiempo_atencion_promedio_min,
+      tiempo_atencion_variable: e.tiempo_atencion_variable,
+      control_puntualidad: e.control_puntualidad,
+      max_vigencia_muestra_min: e.max_vigencia_muestra_min ?? null,
+      preparacion_horas_min: e.preparacion_horas_min ?? null,
+      descripcion: e.descripcion,
+      activo: true,
+    };
+    const byId = await prisma.estudios.findUnique({ where: { id: e.id } });
+    const byName = await prisma.estudios.findUnique({ where: { nombre: e.nombre } });
+
+    if (byId) {
+      // Existe con ese id → update (incluye renombrar si hace falta)
+      // Primero limpiar nombre duplicado en otro id
+      if (byName && byName.id !== e.id) {
+        // Hay otra fila con este nombre: update ESA para renombrarla
+        await prisma.estudios.update({
+          where: { id: byName.id },
+          data: { nombre: `${e.nombre}_old_${byName.id}` },
+        });
+      }
+      await prisma.estudios.update({
+        where: { id: e.id },
+        data: { nombre: e.nombre, ...fields },
+      });
+    } else if (byName) {
+      // Existe con ese nombre pero otro id → update por nombre
+      await prisma.estudios.update({
+        where: { nombre: e.nombre },
+        data: fields,
+      });
+    } else {
+      // No existe → create
+      await prisma.estudios.create({
+        data: { id: e.id, nombre: e.nombre, ...fields },
+      });
+    }
   }
-  console.log('  ✓ Estudios base creados/actualizados');
+  console.log('  ✓ Estudios base: 12 categorias con tiempos reales del Excel');
 
   // ── 2.5 CATALOGO COMPLETO (12 categorias del Excel + extras MVP) ──
   // Crea/actualiza un row en `estudios` por cada categoria del catalogo
@@ -261,41 +386,58 @@ async function main() {
   // Consultorios para TODAS las categorias del catalogo (no solo las base).
   // Usamos las cantidades reales de la hoja "Consultorios x Clinica"
   // del Excel para que el modelo de IA de Coyoacan tenga capacidad real.
-  const CONSULTORIOS_COYOACAN: Record<number, number> = {
-    1: 1, // DENSITOMETRIA
-    2: 1, // LABORATORIO
-    3: 1, // MASTOGRAFIA
-    4: 1, // PAPANICOLAOU
-    5: 1, // RAYOS X
-    6: 4, // ULTRASONIDO
-    9: 1, // ELECTROCARDIOGRAMA
-    11: 1, // TOMOGRAFIA
-    12: 1, // RESONANCIA MAGNETICA
-    16: 2, // NUTRICION
-    38: 1, // OPTICA
-    52: 1, // CONSULTA GENERAL
+  // Datos REALES de hoja "Consultorios x Clinica" filtrado IdSucursal=46.
+  // Incluye los 15 consultorios que tiene Coyoacan.
+  const CONSULTORIOS_COYOACAN: Record<number, { cantidad: number; nombre: string }> = {
+    1:  { cantidad: 1, nombre: 'DENSITOMETRIA' },
+    2:  { cantidad: 1, nombre: 'LABORATORIO' },
+    3:  { cantidad: 1, nombre: 'MASTOGRAFIA' },
+    4:  { cantidad: 1, nombre: 'PAPANICOLAOU' },
+    5:  { cantidad: 1, nombre: 'RAYOS X' },
+    6:  { cantidad: 4, nombre: 'ULTRASONIDO' },
+    9:  { cantidad: 1, nombre: 'ELECTROCARDIOGRAMA' },
+    11: { cantidad: 1, nombre: 'TOMOGRAFIA' },
+    12: { cantidad: 1, nombre: 'RESONANCIA MAGNETICA' },
+    16: { cantidad: 2, nombre: 'NUTRICION' },
+    18: { cantidad: 1, nombre: 'MIDO' },
+    56: { cantidad: 1, nombre: 'BIOPSIAS' },
+    57: { cantidad: 1, nombre: 'TOMOSINTESIS' },
+    58: { cantidad: 1, nombre: 'MASTOGRAFIA CONTRASTADA' },
+    59: { cantidad: 1, nombre: 'BIOPSIAS MASTOGRAFIA' },
   };
 
+  // Insertar consultorios de las categorias del catalogo + los 15 reales
+  const todosConsultorios = new Map<number, { cantidad: number; nombre: string }>();
+  // Primero los del catalogo (por defecto 1)
   for (const cat of SEED_CATALOGO) {
-    const cantidad = CONSULTORIOS_COYOACAN[cat.id] ?? 1;
+    todosConsultorios.set(cat.id, { cantidad: 1, nombre: cat.nombre });
+  }
+  // Sobreescribir con los reales de Coyoacan (que tienen las cantidades correctas)
+  for (const [id, info] of Object.entries(CONSULTORIOS_COYOACAN)) {
+    todosConsultorios.set(Number(id), info);
+  }
+  for (const [idEstudio, info] of todosConsultorios) {
+    // Solo crear si el estudio existe en la BD
+    const existe = await prisma.estudios.findUnique({ where: { id: idEstudio } });
+    if (!existe) continue;
     await prisma.sucursales_consultorios.upsert({
       where: {
         id_sucursal_id_estudio: {
           id_sucursal: sucursalDemo.id,
-          id_estudio: cat.id,
+          id_estudio: idEstudio,
         },
       },
-      update: { cantidad, activo: true },
+      update: { cantidad: info.cantidad, activo: true },
       create: {
         id_sucursal: sucursalDemo.id,
-        id_estudio: cat.id,
-        cantidad,
-        area_nombre: `Area - ${cat.nombre}`,
+        id_estudio: idEstudio,
+        cantidad: info.cantidad,
+        area_nombre: `Area - ${info.nombre}`,
         activo: true,
       },
     });
   }
-  console.log('  ✓ Consultorios de Coyoacan');
+  console.log(`  ✓ Consultorios de Coyoacan: ${todosConsultorios.size} areas`);
 
   // ── 4. Usuarios staff demo ──
   await prisma.usuarios_staff.upsert({
@@ -378,8 +520,9 @@ async function main() {
         origen: 'app',
         estado: 'confirmada',
         reservaciones_servicios: {
-          create: estudiosBase.map((e, i) => ({
-            id_estudio: e.id,
+          // Solo 3 estudios comunes para la demo (Lab, Rayos X, Ultrasonido)
+          create: [2, 5, 6].map((idEstudio, i) => ({
+            id_estudio: idEstudio,
             id_sucursal: sucursalDemo.id,
             estado: 'en_espera',
             orden_atencion: i,
