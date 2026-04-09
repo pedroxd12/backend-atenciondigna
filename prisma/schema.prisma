@@ -342,9 +342,11 @@ model usuarios_staff {
   nombre        String          @db.VarChar(100)
   apellido      String?         @db.VarChar(100)
   email         String          @unique @db.VarChar(150)
-  rol           String          @default("recepcionista") @db.VarChar(50)
-  activo        Boolean         @default(true)
-  created_at    DateTime        @default(now()) @db.Timestamptz(6)
-  reservaciones reservaciones[]
-  sucursales    sucursales      @relation(fields: [id_sucursal], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rol                 String          @default("recepcionista") @db.VarChar(50)
+  activo              Boolean         @default(true)
+  password            String?         @db.VarChar(255)
+  id_estudio_asignado Int?
+  created_at          DateTime        @default(now()) @db.Timestamptz(6)
+  reservaciones       reservaciones[]
+  sucursales          sucursales      @relation(fields: [id_sucursal], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }

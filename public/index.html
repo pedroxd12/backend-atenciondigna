@@ -34,476 +34,468 @@
      })
 ═══════════════════════════════════════════════════════════════════ -->
 <html lang="es">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AtencionDigna — Pacientes RT</title>
-    <script src="https://cdn.socket.io/4.8.0/socket.io.min.js"></script>
-    <style>
-      *,
-      *::before,
-      *::after {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-      }
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>AtencionDigna — Pacientes RT</title>
+		<script src="https://cdn.socket.io/4.8.0/socket.io.min.js"></script>
+		<style>
+			*,
+			*::before,
+			*::after {
+				box-sizing: border-box;
+				margin: 0;
+				padding: 0;
+			}
 
-      body {
-        font-family: "Segoe UI", system-ui, sans-serif;
-        background: #0f172a;
-        color: #e2e8f0;
-        min-height: 100vh;
-      }
+			body {
+				font-family: 'Segoe UI', system-ui, sans-serif;
+				background: #0f172a;
+				color: #e2e8f0;
+				min-height: 100vh;
+			}
 
-      /* ── HEADER ── */
-      header {
-        background: #1e293b;
-        border-bottom: 1px solid #334155;
-        padding: 0.85rem 2rem;
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-      }
-      header h1 {
-        font-size: 1.1rem;
-        font-weight: 700;
-      }
-      header small {
-        color: #64748b;
-        font-size: 0.75rem;
-      }
-      .spacer {
-        flex: 1;
-      }
-      #ws-badge {
-        display: flex;
-        align-items: center;
-        gap: 0.4rem;
-        font-size: 0.75rem;
-        color: #94a3b8;
-      }
-      #ws-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: #475569;
-        transition: background 0.3s;
-      }
-      #ws-dot.on {
-        background: #22c55e;
-        box-shadow: 0 0 5px #22c55e88;
-      }
-      #ws-dot.mid {
-        background: #f59e0b;
-      }
+			/* ── HEADER ── */
+			header {
+				background: #1e293b;
+				border-bottom: 1px solid #334155;
+				padding: 0.85rem 2rem;
+				display: flex;
+				align-items: center;
+				gap: 0.75rem;
+			}
+			header h1 {
+				font-size: 1.1rem;
+				font-weight: 700;
+			}
+			header small {
+				color: #64748b;
+				font-size: 0.75rem;
+			}
+			.spacer {
+				flex: 1;
+			}
+			#ws-badge {
+				display: flex;
+				align-items: center;
+				gap: 0.4rem;
+				font-size: 0.75rem;
+				color: #94a3b8;
+			}
+			#ws-dot {
+				width: 8px;
+				height: 8px;
+				border-radius: 50%;
+				background: #475569;
+				transition: background 0.3s;
+			}
+			#ws-dot.on {
+				background: #22c55e;
+				box-shadow: 0 0 5px #22c55e88;
+			}
+			#ws-dot.mid {
+				background: #f59e0b;
+			}
 
-      /* ── LAYOUT ── */
-      .container {
-        max-width: 1200px;
-        margin: 0 auto;
-        padding: 1.5rem 2rem;
-        display: flex;
-        flex-direction: column;
-        gap: 1.5rem;
-      }
+			/* ── LAYOUT ── */
+			.container {
+				max-width: 1200px;
+				margin: 0 auto;
+				padding: 1.5rem 2rem;
+				display: flex;
+				flex-direction: column;
+				gap: 1.5rem;
+			}
 
-      /* ── SIMULATOR CARD ── */
-      .card {
-        background: #1e293b;
-        border: 1px solid #334155;
-        border-radius: 10px;
-        padding: 1.25rem 1.5rem;
-      }
-      .card-title {
-        font-size: 0.7rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        color: #6366f1;
-        margin-bottom: 1rem;
-      }
-      .form-row {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-        gap: 0.75rem;
-        align-items: end;
-      }
-      .field {
-        display: flex;
-        flex-direction: column;
-        gap: 0.3rem;
-      }
-      .field label {
-        font-size: 0.75rem;
-        color: #94a3b8;
-      }
-      input,
-      select {
-        background: #0f172a;
-        border: 1px solid #334155;
-        border-radius: 6px;
-        padding: 0.45rem 0.65rem;
-        color: #e2e8f0;
-        font-size: 0.85rem;
-        outline: none;
-        transition: border-color 0.2s;
-        width: 100%;
-      }
-      input:focus,
-      select:focus {
-        border-color: #6366f1;
-      }
-      .btn {
-        padding: 0.5rem 1.1rem;
-        border-radius: 6px;
-        border: none;
-        font-size: 0.85rem;
-        font-weight: 600;
-        cursor: pointer;
-        transition:
-          opacity 0.15s,
-          transform 0.1s;
-        white-space: nowrap;
-      }
-      .btn:active {
-        transform: scale(0.96);
-      }
-      .btn-indigo {
-        background: #6366f1;
-        color: #fff;
-      }
-      .btn-red {
-        background: #ef4444;
-        color: #fff;
-      }
+			/* ── SIMULATOR CARD ── */
+			.card {
+				background: #1e293b;
+				border: 1px solid #334155;
+				border-radius: 10px;
+				padding: 1.25rem 1.5rem;
+			}
+			.card-title {
+				font-size: 0.7rem;
+				font-weight: 700;
+				text-transform: uppercase;
+				letter-spacing: 0.08em;
+				color: #6366f1;
+				margin-bottom: 1rem;
+			}
+			.form-row {
+				display: grid;
+				grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+				gap: 0.75rem;
+				align-items: end;
+			}
+			.field {
+				display: flex;
+				flex-direction: column;
+				gap: 0.3rem;
+			}
+			.field label {
+				font-size: 0.75rem;
+				color: #94a3b8;
+			}
+			input,
+			select {
+				background: #0f172a;
+				border: 1px solid #334155;
+				border-radius: 6px;
+				padding: 0.45rem 0.65rem;
+				color: #e2e8f0;
+				font-size: 0.85rem;
+				outline: none;
+				transition: border-color 0.2s;
+				width: 100%;
+			}
+			input:focus,
+			select:focus {
+				border-color: #6366f1;
+			}
+			.btn {
+				padding: 0.5rem 1.1rem;
+				border-radius: 6px;
+				border: none;
+				font-size: 0.85rem;
+				font-weight: 600;
+				cursor: pointer;
+				transition:
+					opacity 0.15s,
+					transform 0.1s;
+				white-space: nowrap;
+			}
+			.btn:active {
+				transform: scale(0.96);
+			}
+			.btn-indigo {
+				background: #6366f1;
+				color: #fff;
+			}
+			.btn-red {
+				background: #ef4444;
+				color: #fff;
+			}
 
-      /* curl hint */
-      .curl-hint {
-        margin-top: 0.85rem;
-        background: #0f172a;
-        border: 1px solid #1e3a5f;
-        border-radius: 6px;
-        padding: 0.6rem 0.9rem;
-        font-family: monospace;
-        font-size: 0.78rem;
-        color: #7dd3fc;
-        white-space: pre-wrap;
-        word-break: break-all;
-      }
-      .curl-hint em {
-        color: #64748b;
-        font-style: normal;
-      }
+			/* curl hint */
+			.curl-hint {
+				margin-top: 0.85rem;
+				background: #0f172a;
+				border: 1px solid #1e3a5f;
+				border-radius: 6px;
+				padding: 0.6rem 0.9rem;
+				font-family: monospace;
+				font-size: 0.78rem;
+				color: #7dd3fc;
+				white-space: pre-wrap;
+				word-break: break-all;
+			}
+			.curl-hint em {
+				color: #64748b;
+				font-style: normal;
+			}
 
-      /* ── TABLE ── */
-      .table-wrap {
-        overflow-x: auto;
-        border-radius: 10px;
-        border: 1px solid #334155;
-      }
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 0.85rem;
-      }
-      thead {
-        background: #1e293b;
-        position: sticky;
-        top: 0;
-      }
-      thead th {
-        padding: 0.7rem 1rem;
-        text-align: left;
-        font-size: 0.7rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.07em;
-        color: #64748b;
-        border-bottom: 1px solid #334155;
-      }
-      tbody tr {
-        border-bottom: 1px solid #1e293b;
-        transition: background 0.15s;
-        animation: rowIn 0.25s ease;
-      }
-      tbody tr:last-child {
-        border-bottom: none;
-      }
-      tbody tr:hover {
-        background: #1e293b88;
-      }
-      @keyframes rowIn {
-        from {
-          opacity: 0;
-          background: #312e8133;
-        }
-        to {
-          opacity: 1;
-          background: transparent;
-        }
-      }
-      tbody td {
-        padding: 0.7rem 1rem;
-        vertical-align: top;
-      }
+			/* ── TABLE ── */
+			.table-wrap {
+				overflow-x: auto;
+				border-radius: 10px;
+				border: 1px solid #334155;
+			}
+			table {
+				width: 100%;
+				border-collapse: collapse;
+				font-size: 0.85rem;
+			}
+			thead {
+				background: #1e293b;
+				position: sticky;
+				top: 0;
+			}
+			thead th {
+				padding: 0.7rem 1rem;
+				text-align: left;
+				font-size: 0.7rem;
+				font-weight: 700;
+				text-transform: uppercase;
+				letter-spacing: 0.07em;
+				color: #64748b;
+				border-bottom: 1px solid #334155;
+			}
+			tbody tr {
+				border-bottom: 1px solid #1e293b;
+				transition: background 0.15s;
+				animation: rowIn 0.25s ease;
+			}
+			tbody tr:last-child {
+				border-bottom: none;
+			}
+			tbody tr:hover {
+				background: #1e293b88;
+			}
+			@keyframes rowIn {
+				from {
+					opacity: 0;
+					background: #312e8133;
+				}
+				to {
+					opacity: 1;
+					background: transparent;
+				}
+			}
+			tbody td {
+				padding: 0.7rem 1rem;
+				vertical-align: top;
+			}
 
-      .badge {
-        display: inline-block;
-        font-size: 0.65rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        padding: 0.15rem 0.45rem;
-        border-radius: 4px;
-      }
-      .b-answer {
-        background: #312e81;
-        color: #a5b4fc;
-      }
-      .b-status {
-        background: #14532d;
-        color: #86efac;
-      }
-      .b-error {
-        background: #450a0a;
-        color: #fca5a5;
-      }
-      .b-default {
-        background: #292524;
-        color: #fcd34d;
-      }
+			.badge {
+				display: inline-block;
+				font-size: 0.65rem;
+				font-weight: 700;
+				text-transform: uppercase;
+				padding: 0.15rem 0.45rem;
+				border-radius: 4px;
+			}
+			.b-answer {
+				background: #312e81;
+				color: #a5b4fc;
+			}
+			.b-status {
+				background: #14532d;
+				color: #86efac;
+			}
+			.b-error {
+				background: #450a0a;
+				color: #fca5a5;
+			}
+			.b-default {
+				background: #292524;
+				color: #fcd34d;
+			}
 
-      .resp-text {
-        max-width: 340px;
-        white-space: pre-wrap;
-        word-break: break-word;
-        color: #cbd5e1;
-        line-height: 1.45;
-      }
-      .mono {
-        font-family: monospace;
-        color: #94a3b8;
-        font-size: 0.8rem;
-      }
+			.resp-text {
+				max-width: 340px;
+				white-space: pre-wrap;
+				word-break: break-word;
+				color: #cbd5e1;
+				line-height: 1.45;
+			}
+			.mono {
+				font-family: monospace;
+				color: #94a3b8;
+				font-size: 0.8rem;
+			}
 
-      #empty-row td {
-        text-align: center;
-        padding: 2.5rem;
-        color: #334155;
-        font-size: 0.9rem;
-      }
+			#empty-row td {
+				text-align: center;
+				padding: 2.5rem;
+				color: #334155;
+				font-size: 0.9rem;
+			}
 
-      /* scrollbar */
-      ::-webkit-scrollbar {
-        width: 5px;
-        height: 5px;
-      }
-      ::-webkit-scrollbar-track {
-        background: transparent;
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #334155;
-        border-radius: 3px;
-      }
-    </style>
-  </head>
-  <body>
-    <header>
-      <h1>AtencionDigna</h1>
-      <small>Dashboard pacientes · tiempo real</small>
-      <span class="spacer"></span>
-      <div id="ws-badge">
-        <div id="ws-dot"></div>
-        <span id="ws-label">desconectado</span>
-      </div>
-    </header>
+			/* scrollbar */
+			::-webkit-scrollbar {
+				width: 5px;
+				height: 5px;
+			}
+			::-webkit-scrollbar-track {
+				background: transparent;
+			}
+			::-webkit-scrollbar-thumb {
+				background: #334155;
+				border-radius: 3px;
+			}
+		</style>
+	</head>
+	<body>
+		<header>
+			<h1>AtencionDigna</h1>
+			<small>Dashboard pacientes · tiempo real</small>
+			<span class="spacer"></span>
+			<div id="ws-badge">
+				<div id="ws-dot"></div>
+				<span id="ws-label">desconectado</span>
+			</div>
+		</header>
 
-    <div class="container">
-      <!-- ── SIMULADOR ── -->
-      <div class="card">
-        <p class="card-title">Simular respuesta FastAPI → webhook</p>
-        <div class="form-row">
-          <div class="field" style="min-width: 110px">
-            <label>Case / Paciente ID</label>
-            <input id="f-caseId" value="PAC-001" />
-          </div>
-          <div class="field">
-            <label>Nombre</label>
-            <input id="f-nombre" value="María López" />
-          </div>
-          <div class="field">
-            <label>Padecimiento</label>
-            <input id="f-padecimiento" value="Hipertensión" />
-          </div>
-          <div class="field">
-            <label>Respuesta de la IA</label>
-            <input id="f-respuesta" value="Revisión recomendada en 48h." />
-          </div>
-          <div class="field">
-            <label>Tipo</label>
-            <select id="f-tipo">
-              <option value="answer">answer</option>
-              <option value="status">status</option>
-              <option value="error">error</option>
-            </select>
-          </div>
-          <div class="field" style="justify-content: flex-end">
-            <button class="btn btn-indigo" id="btn-send">Enviar webhook</button>
-          </div>
-          <div class="field" style="justify-content: flex-end">
-            <button class="btn btn-red" id="btn-clear">Limpiar tabla</button>
-          </div>
-        </div>
+		<div class="container">
+			<!-- ── SIMULADOR ── -->
+			<div class="card">
+				<p class="card-title">Simular respuesta FastAPI → webhook</p>
+				<div class="form-row">
+					<div class="field" style="min-width: 110px">
+						<label>Case / Paciente ID</label>
+						<input id="f-caseId" value="PAC-001" />
+					</div>
+					<div class="field">
+						<label>Nombre</label>
+						<input id="f-nombre" value="María López" />
+					</div>
+					<div class="field">
+						<label>Padecimiento</label>
+						<input id="f-padecimiento" value="Hipertensión" />
+					</div>
+					<div class="field">
+						<label>Respuesta de la IA</label>
+						<input id="f-respuesta" value="Revisión recomendada en 48h." />
+					</div>
+					<div class="field">
+						<label>Tipo</label>
+						<select id="f-tipo">
+							<option value="answer">answer</option>
+							<option value="status">status</option>
+							<option value="error">error</option>
+						</select>
+					</div>
+					<div class="field" style="justify-content: flex-end">
+						<button class="btn btn-indigo" id="btn-send">Enviar webhook</button>
+					</div>
+					<div class="field" style="justify-content: flex-end">
+						<button class="btn btn-red" id="btn-clear">Limpiar tabla</button>
+					</div>
+				</div>
 
-        <pre
-          class="curl-hint"
-          id="curl-hint"
-        ><em># Equivalente en terminal:</em>
+				<pre class="curl-hint" id="curl-hint"><em># Equivalente en terminal:</em>
 curl -X POST http://localhost:3000/real-time/webhook \
   -H "Content-Type: application/json" \
   -d '{"caseId":"PAC-001","type":"answer","content":{"nombre":"María López","padecimiento":"Hipertensión","respuesta":"Revisión recomendada en 48h."}}'</pre>
-      </div>
+			</div>
 
-      <!-- ── TABLA ── -->
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Case ID</th>
-              <th>Paciente</th>
-              <th>Padecimiento</th>
-              <th>Respuesta IA</th>
-              <th>Tipo</th>
-              <th>Hora</th>
-            </tr>
-          </thead>
-          <tbody id="tbody">
-            <tr id="empty-row">
-              <td colspan="7">
-                Sin registros — envía un webhook para ver resultados aquí
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-    <!-- /container -->
+			<!-- ── TABLA ── -->
+			<div class="table-wrap">
+				<table>
+					<thead>
+						<tr>
+							<th>#</th>
+							<th>Case ID</th>
+							<th>Paciente</th>
+							<th>Padecimiento</th>
+							<th>Respuesta IA</th>
+							<th>Tipo</th>
+							<th>Hora</th>
+						</tr>
+					</thead>
+					<tbody id="tbody">
+						<tr id="empty-row">
+							<td colspan="7">
+								Sin registros — envía un webhook para ver resultados aquí
+							</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+		</div>
+		<!-- /container -->
 
-    <script>
-      const BASE = "http://localhost:3000";
-      let rowCount = 0;
+		<script>
+			const BASE = 'http://localhost:3000';
+			let rowCount = 0;
 
-      // ── WebSocket ──────────────────────────────────────────────────────────────
-      const dot = document.getElementById("ws-dot");
-      const wslbl = document.getElementById("ws-label");
+			// ── WebSocket ──────────────────────────────────────────────────────────────
+			const dot = document.getElementById('ws-dot');
+			const wslbl = document.getElementById('ws-label');
 
-      const socket = io(`${BASE}/responses`, {
-        transports: ["websocket", "polling"],
-      });
+			const socket = io(`${BASE}/responses`, {
+				transports: ['websocket', 'polling'],
+			});
 
-      socket.on("connect", () => {
-        dot.className = "on";
-        wslbl.textContent = `conectado · ${socket.id.slice(0, 8)}…`;
-        // Suscribirse a TODOS los casos a la vez (sala wildcard no existe en socket.io;
-        // aquí simplemente nos suscribimos a medida que llegan eventos)
-      });
-      socket.on("disconnect", () => {
-        dot.className = "";
-        wslbl.textContent = "desconectado";
-      });
+			socket.on('connect', () => {
+				dot.className = 'on';
+				wslbl.textContent = `conectado · ${socket.id.slice(0, 8)}…`;
+				// Suscribirse a TODOS los casos a la vez (sala wildcard no existe en socket.io;
+				// aquí simplemente nos suscribimos a medida que llegan eventos)
+			});
+			socket.on('disconnect', () => {
+				dot.className = '';
+				wslbl.textContent = 'desconectado';
+			});
 
-      // ── Escuchar respuestas de FastAPI ─────────────────────────────────────────
-      socket.on("response:new", (data) => {
-        addRow(data);
-      });
+			// ── Escuchar respuestas de FastAPI ─────────────────────────────────────────
+			socket.on('response:new', (data) => {
+				addRow(data);
+			});
 
-      // ── Enviar webhook (simula FastAPI) ────────────────────────────────────────
-      document
-        .getElementById("btn-send")
-        .addEventListener("click", async () => {
-          const caseId = document.getElementById("f-caseId").value.trim();
-          const nombre = document.getElementById("f-nombre").value.trim();
-          const padecimiento = document
-            .getElementById("f-padecimiento")
-            .value.trim();
-          const respuesta = document.getElementById("f-respuesta").value.trim();
-          const type = document.getElementById("f-tipo").value;
+			// ── Enviar webhook (simula FastAPI) ────────────────────────────────────────
+			document.getElementById('btn-send').addEventListener('click', async () => {
+				const caseId = document.getElementById('f-caseId').value.trim();
+				const nombre = document.getElementById('f-nombre').value.trim();
+				const padecimiento = document.getElementById('f-padecimiento').value.trim();
+				const respuesta = document.getElementById('f-respuesta').value.trim();
+				const type = document.getElementById('f-tipo').value;
 
-          // Primero nos unimos a la sala del caso para recibir el broadcast
-          socket.emit("join-case", { caseId });
+				// Primero nos unimos a la sala del caso para recibir el broadcast
+				socket.emit('join-case', { caseId });
 
-          const body = {
-            caseId,
-            type,
-            content: { nombre, padecimiento, respuesta },
-            timestamp: new Date().toISOString(),
-          };
+				const body = {
+					caseId,
+					type,
+					content: { nombre, padecimiento, respuesta },
+					timestamp: new Date().toISOString(),
+				};
 
-          // Actualizar el hint de curl
-          document.getElementById("curl-hint").textContent =
-            `# Equivalente en terminal:\ncurl -X POST ${BASE}/real-time/webhook \\\n  -H "Content-Type: application/json" \\\n  -d '${JSON.stringify(body)}'`;
+				// Actualizar el hint de curl
+				document.getElementById('curl-hint').textContent =
+					`# Equivalente en terminal:\ncurl -X POST ${BASE}/real-time/webhook \\\n  -H "Content-Type: application/json" \\\n  -d '${JSON.stringify(body)}'`;
 
-          try {
-            const res = await fetch(`${BASE}/real-time/webhook`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(body),
-            });
-            if (!res.ok) throw new Error(await res.text());
-          } catch (err) {
-            alert(`Error al enviar webhook:\n${err.message}`);
-          }
-        });
+				try {
+					const res = await fetch(`${BASE}/real-time/webhook`, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify(body),
+					});
+					if (!res.ok) throw new Error(await res.text());
+				} catch (err) {
+					alert(`Error al enviar webhook:\n${err.message}`);
+				}
+			});
 
-      // ── Limpiar tabla ──────────────────────────────────────────────────────────
-      document.getElementById("btn-clear").addEventListener("click", () => {
-        const tbody = document.getElementById("tbody");
-        tbody.innerHTML = `
+			// ── Limpiar tabla ──────────────────────────────────────────────────────────
+			document.getElementById('btn-clear').addEventListener('click', () => {
+				const tbody = document.getElementById('tbody');
+				tbody.innerHTML = `
       <tr id="empty-row">
         <td colspan="7">Sin registros — envía un webhook para ver resultados aquí</td>
       </tr>`;
-        rowCount = 0;
-      });
+				rowCount = 0;
+			});
 
-      // ── Insertar fila ──────────────────────────────────────────────────────────
-      function addRow(data) {
-        const tbody = document.getElementById("tbody");
-        const empty = document.getElementById("empty-row");
-        if (empty) empty.remove();
+			// ── Insertar fila ──────────────────────────────────────────────────────────
+			function addRow(data) {
+				const tbody = document.getElementById('tbody');
+				const empty = document.getElementById('empty-row');
+				if (empty) empty.remove();
 
-        rowCount++;
-        const c = data.content ?? {};
-        const ts = data.timestamp
-          ? new Date(data.timestamp).toLocaleTimeString("es-MX", {
-              hour12: false,
-            })
-          : new Date().toLocaleTimeString("es-MX", { hour12: false });
+				rowCount++;
+				const c = data.content ?? {};
+				const ts = data.timestamp
+					? new Date(data.timestamp).toLocaleTimeString('es-MX', {
+							hour12: false,
+						})
+					: new Date().toLocaleTimeString('es-MX', { hour12: false });
 
-        const badgeClass =
-          { answer: "b-answer", status: "b-status", error: "b-error" }[
-            data.type
-          ] ?? "b-default";
+				const badgeClass =
+					{ answer: 'b-answer', status: 'b-status', error: 'b-error' }[data.type] ??
+					'b-default';
 
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
+				const tr = document.createElement('tr');
+				tr.innerHTML = `
       <td class="mono">${rowCount}</td>
-      <td class="mono">${esc(data.caseId ?? "—")}</td>
-      <td>${esc(c.nombre ?? "—")}</td>
-      <td>${esc(c.padecimiento ?? "—")}</td>
+      <td class="mono">${esc(data.caseId ?? '—')}</td>
+      <td>${esc(c.nombre ?? '—')}</td>
+      <td>${esc(c.padecimiento ?? '—')}</td>
       <td><div class="resp-text">${esc(c.respuesta ?? JSON.stringify(c))}</div></td>
-      <td><span class="badge ${badgeClass}">${esc(data.type ?? "?")}</span></td>
+      <td><span class="badge ${badgeClass}">${esc(data.type ?? '?')}</span></td>
       <td class="mono">${ts}</td>`;
 
-        tbody.insertBefore(tr, tbody.firstChild);
-      }
+				tbody.insertBefore(tr, tbody.firstChild);
+			}
 
-      function esc(str) {
-        return String(str)
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")
-          .replace(/"/g, "&quot;");
-      }
-    </script>
-  </body>
+			function esc(str) {
+				return String(str)
+					.replace(/&/g, '&amp;')
+					.replace(/</g, '&lt;')
+					.replace(/>/g, '&gt;')
+					.replace(/"/g, '&quot;');
+			}
+		</script>
+	</body>
 </html>
