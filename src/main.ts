@@ -11,10 +11,17 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // CORS abierto para el MVP — en produccion restringir al dominio del
-  // frontend (app movil + dashboard).
+  // CORS — para el MVP permitimos cualquier origen.
+  // Cuando credentials=true, no se puede usar origin='*'.
+  // Usamos una función que refleja el Origin de la petición.
+  const allowedOrigins = process.env.CORS_ORIGINS?.split(',').filter(Boolean);
   app.enableCors({
-    origin: process.env.CORS_ORIGINS?.split(',') ?? '*',
+    origin: allowedOrigins?.length
+      ? allowedOrigins
+      : (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => {
+          // Permitir cualquier origen (MVP) reflejando el origin exacto
+          cb(null, true);
+        },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     credentials: true,
   });
