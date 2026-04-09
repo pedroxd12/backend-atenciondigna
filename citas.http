@@ -1,0 +1,68 @@
+@baseUrl = http://localhost:3000
+
+### ─── 1. Crear paciente 1 ───────────────────────────────────────────────────
+POST {{baseUrl}}/citas/pacientes
+Content-Type: application/json
+
+{
+  "nombre": "María",
+  "apellido_paterno": "García",
+  "apellido_materno": "López",
+  "fecha_nacimiento": "1990-05-15",
+  "sexo": "F",
+  "email": "maria.garcia@example.com",
+  "telefono": "5551234567"
+}
+
+### ─── 2. Crear paciente 2 ───────────────────────────────────────────────────
+POST {{baseUrl}}/citas/pacientes
+Content-Type: application/json
+
+{
+  "nombre": "Carlos",
+  "apellido_paterno": "Martínez",
+  "apellido_materno": "Pérez",
+  "fecha_nacimiento": "1985-11-30",
+  "sexo": "M",
+  "email": "carlos.martinez@example.com",
+  "telefono": "5559876543"
+}
+
+### ─── 3. Crear reservación para paciente 1 (reemplaza @paciente1Id) ─────────
+# Copia el campo "id" devuelto en el paso 1 y pégalo en id_paciente
+POST {{baseUrl}}/citas/reservaciones
+Content-Type: application/json
+
+{
+  "id_paciente": "PEGAR_UUID_PACIENTE_1",
+  "id_sucursal": 1,
+  "fecha_programada": "2026-04-15",
+  "hora_programada": "10:30",
+  "origen": "web",
+  "notas": "Primera visita",
+  "servicios": [
+    { "id_estudio": 1 }
+  ]
+}
+
+### ─── 4. Crear reservación para paciente 2 (reemplaza @paciente2Id) ─────────
+# Copia el campo "id" devuelto en el paso 2 y pégalo en id_paciente
+POST {{baseUrl}}/citas/reservaciones
+Content-Type: application/json
+
+{
+  "id_paciente": "PEGAR_UUID_PACIENTE_2",
+  "id_sucursal": 1,
+  "fecha_programada": "2026-04-16",
+  "hora_programada": "11:00",
+  "origen": "app",
+  "notas": "Seguimiento",
+  "servicios": [
+    { "id_estudio": 1 },
+    { "id_estudio": 2 }
+  ]
+}
+
+### ─── 5. Obtener QR de una reservación ─────────────────────────────────────
+# Reemplaza 1 con el id_reservacion devuelto en el paso 3 o 4
+GET {{baseUrl}}/citas/reservaciones/1/qr

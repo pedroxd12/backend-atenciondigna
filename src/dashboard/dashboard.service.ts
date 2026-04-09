@@ -17,10 +17,11 @@ export class DashboardService {
 		return `${hh}:${mm}`;
 	}
 
-	async getReservacionesRecientes(): Promise<ReservacionRecienteDto[]> {
+	async getReservacionesRecientes(idSucursal?: number): Promise<ReservacionRecienteDto[]> {
 		const reservaciones = await this.prisma.reservaciones.findMany({
 			take: 5,
 			orderBy: { created_at: 'desc' },
+			...(idSucursal ? { where: { id_sucursal: idSucursal } } : {}),
 			include: {
 				pacientes: {
 					select: {
@@ -131,12 +132,12 @@ export class DashboardService {
 		};
 	}
 
-	/** Todos los pacientes con cita hoy (pendiente / en_espera) */
-	async getColaPacientes(): Promise<ColaItemDto[]> {
+	/** Todos los pacientes con cita hoy (todos los estados) */
+	async getColaPacientes(idSucursal?: number): Promise<ColaItemDto[]> {
 		const reservaciones = await this.prisma.reservaciones.findMany({
 			where: {
 				fecha_programada: { gte: this.hoySinHora(), lt: this.mayanaSinHora() },
-				estado: { in: ['pendiente', 'en_espera'] },
+				...(idSucursal ? { id_sucursal: idSucursal } : {}),
 			},
 			orderBy: [{ hora_programada: { sort: 'asc', nulls: 'last' } }],
 			include: {
@@ -156,13 +157,13 @@ export class DashboardService {
 		return reservaciones.map((r) => this.mapColaItem(r));
 	}
 
-	/** Solo pacientes cuya cita incluye el estudio indicado (filtro por servicio) */
-	async getColaPorServicio(id_estudio: number): Promise<ColaItemDto[]> {
+	/** Solo pacientes cuya cita incluye el estudio indicado (todos los estados) */
+	async getColaPorServicio(id_estudio: number, idSucursal?: number): Promise<ColaItemDto[]> {
 		const reservaciones = await this.prisma.reservaciones.findMany({
 			where: {
 				fecha_programada: { gte: this.hoySinHora(), lt: this.mayanaSinHora() },
-				estado: { in: ['pendiente', 'en_espera'] },
 				reservaciones_servicios: { some: { id_estudio } },
+				...(idSucursal ? { id_sucursal: idSucursal } : {}),
 			},
 			orderBy: [{ hora_programada: { sort: 'asc', nulls: 'last' } }],
 			include: {

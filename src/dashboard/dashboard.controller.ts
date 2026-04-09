@@ -1,4 +1,4 @@
-import { Controller, Get, Param, HttpCode, HttpStatus, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Param, Query, HttpCode, HttpStatus, ParseIntPipe } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
 
 @Controller('dashboard')
@@ -7,21 +7,34 @@ export class DashboardController {
 
 	@Get('reservaciones/recientes')
 	@HttpCode(HttpStatus.OK)
-	getReservacionesRecientes() {
-		return this.dashboardService.getReservacionesRecientes();
+	getReservacionesRecientes(@Query('idSucursal') idSucursal?: string) {
+		const parsed = idSucursal ? parseInt(idSucursal, 10) : undefined;
+		return this.dashboardService.getReservacionesRecientes(
+			parsed && !isNaN(parsed) ? parsed : undefined,
+		);
 	}
 
 	/** Todos los pacientes con cita hoy (sin filtro de servicio) */
 	@Get('cola')
 	@HttpCode(HttpStatus.OK)
-	getColaPacientes() {
-		return this.dashboardService.getColaPacientes();
+	getColaPacientes(@Query('idSucursal') idSucursal?: string) {
+		const parsed = idSucursal ? parseInt(idSucursal, 10) : undefined;
+		return this.dashboardService.getColaPacientes(
+			parsed && !isNaN(parsed) ? parsed : undefined,
+		);
 	}
 
 	/** Pacientes cuya cita incluye el estudio :id_estudio */
 	@Get('cola/servicio/:id_estudio')
 	@HttpCode(HttpStatus.OK)
-	getColaPorServicio(@Param('id_estudio', ParseIntPipe) id_estudio: number) {
-		return this.dashboardService.getColaPorServicio(id_estudio);
+	getColaPorServicio(
+		@Param('id_estudio', ParseIntPipe) id_estudio: number,
+		@Query('idSucursal') idSucursal?: string,
+	) {
+		const parsed = idSucursal ? parseInt(idSucursal, 10) : undefined;
+		return this.dashboardService.getColaPorServicio(
+			id_estudio,
+			parsed && !isNaN(parsed) ? parsed : undefined,
+		);
 	}
 }
