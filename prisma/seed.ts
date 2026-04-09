@@ -297,7 +297,45 @@ async function main() {
   }
   console.log('  ✓ Consultorios de Coyoacan');
 
-  // ── 4. Paciente demo ──
+  // ── 4. Usuarios staff demo ──
+  await prisma.usuarios_staff.upsert({
+    where: { email: 'recepcion@atenciondigna.com' },
+    update: {
+      nombre: 'Laura',
+      apellido: 'Perez',
+      rol: 'recepcionista',
+      activo: true,
+    },
+    create: {
+      id_sucursal: sucursalDemo.id,
+      nombre: 'Laura',
+      apellido: 'Perez',
+      email: 'recepcion@atenciondigna.com',
+      rol: 'recepcionista',
+      activo: true,
+    },
+  });
+
+  await prisma.usuarios_staff.upsert({
+    where: { email: 'medico@atenciondigna.com' },
+    update: {
+      nombre: 'Carlos',
+      apellido: 'Lopez',
+      rol: 'medico',
+      activo: true,
+    },
+    create: {
+      id_sucursal: sucursalDemo.id,
+      nombre: 'Carlos',
+      apellido: 'Lopez',
+      email: 'medico@atenciondigna.com',
+      rol: 'medico',
+      activo: true,
+    },
+  });
+  console.log('  ✓ Staff demo: recepcion@atenciondigna.com / medico@atenciondigna.com');
+
+  // ── 5. Paciente demo ──
   await prisma.pacientes.upsert({
     where: { id: DEMO_PATIENT_ID },
     update: { nombre: 'Ana', apellido_paterno: 'Garcia' },
@@ -314,7 +352,7 @@ async function main() {
   });
   console.log(`  ✓ Paciente demo: ${DEMO_PATIENT_ID}`);
 
-  // ── 5. Reservacion para HOY ──
+  // ── 6. Reservacion para HOY ──
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);
   const manana = new Date(hoy);

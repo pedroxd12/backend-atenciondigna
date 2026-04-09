@@ -52,9 +52,7 @@ export class AppointmentsService {
       patientId: reservacion.id_paciente,
       branchId: reservacion.id_sucursal,
       date: reservacion.fecha_programada.toISOString().substring(0, 10),
-      time: reservacion.hora_programada
-        ?.toISOString()
-        .substring(11, 16),
+      time: reservacion.hora_programada?.toISOString().substring(11, 16),
       studyIds: reservacion.reservaciones_servicios.map((s) => s.id_estudio),
       status: reservacion.estado,
     };

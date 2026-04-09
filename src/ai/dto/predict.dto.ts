@@ -6,8 +6,8 @@
 export class PredictDto {
   id_sucursal!: number;
   id_estudio!: number;
-  hora!: number;        // 0-23
-  dia_semana!: number;  // 0=Lun ... 6=Dom
+  hora!: number; // 0-23
+  dia_semana!: number; // 0=Lun ... 6=Dom
   pacientes_en_cola?: number;
   consultorios_activos?: number;
 }

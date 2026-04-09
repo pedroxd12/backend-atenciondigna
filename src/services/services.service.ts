@@ -229,8 +229,7 @@ export class ServicesService {
     if (n.includes('ELECTROCARDIOGRAMA')) return 'monitor_heart';
     if (n.includes('TOMOGRAFIA') || n.includes('TOMOGRAFÍA')) return 'biotech';
     if (n.includes('RESONANCIA')) return 'auto_graph';
-    if (n.includes('NUTRICION') || n.includes('NUTRICIÓN'))
-      return 'restaurant';
+    if (n.includes('NUTRICION') || n.includes('NUTRICIÓN')) return 'restaurant';
     if (n.includes('MASTOGRAFIA') || n.includes('MASTOGRAFÍA'))
       return 'favorite_border';
     if (n.includes('DENSITOMETRIA') || n.includes('DENSITOMETRÍA'))

@@ -13,8 +13,23 @@ import {
   RegisterDto,
 } from './dto/auth.dto';
 
+interface StaffAuthResponse {
+  token: string;
+  id: string;
+  nombre: string;
+  apellido: string;
+  email: string;
+  rol: string;
+  id_estudio_asignado: number | null;
+  estudio?: { id: number | null; nombre: string };
+  sucursal: { id: number; nombre: string };
+}
+
 @Injectable()
 export class AuthService {
+  private readonly staffLoginPassword =
+    process.env.STAFF_LOGIN_PASSWORD ?? 'demo-staff-2026';
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
@@ -66,6 +81,48 @@ export class AuthService {
     if (!ok) throw new UnauthorizedException('Credenciales invalidas');
 
     return this.buildResponse(paciente);
+  }
+
+  async loginStaff(
+    emailInput: string,
+    password: string,
+  ): Promise<StaffAuthResponse> {
+    const email = emailInput.trim().toLowerCase();
+    const staff = await this.prisma.usuarios_staff.findFirst({
+      where: { email, activo: true },
+      include: {
+        sucursales: true,
+      },
+    });
+
+    if (!staff) {
+      throw new UnauthorizedException('Usuario no encontrado');
+    }
+
+    if (password !== this.staffLoginPassword) {
+      throw new UnauthorizedException('Credenciales invalidas');
+    }
+
+    const token = this.jwt.sign({
+      sub: staff.id,
+      email: staff.email,
+      rol: staff.rol,
+      sucursalId: staff.id_sucursal,
+    });
+
+    return {
+      token,
+      id: staff.id,
+      nombre: staff.nombre,
+      apellido: staff.apellido ?? '',
+      email: staff.email,
+      rol: staff.rol,
+      id_estudio_asignado: null,
+      sucursal: {
+        id: staff.sucursales.id,
+        nombre: staff.sucursales.nombre,
+      },
+    };
   }
 
   // ────────────────────────────────────────────────

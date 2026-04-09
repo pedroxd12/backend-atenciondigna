@@ -112,7 +112,8 @@ export class WaitingService {
       estimatedMinutes: tiempo,
       saturationLevel: levelFromMinutes(tiempo),
       isYourTurn: srv.estado === 'llamado' || peopleAhead === 0,
-      folio: srv.numero_turno != null ? this.formatFolio(srv.numero_turno) : null,
+      folio:
+        srv.numero_turno != null ? this.formatFolio(srv.numero_turno) : null,
       hasActiveService: true,
       branch,
     };
@@ -169,9 +170,7 @@ export class WaitingService {
     return cola.map((c) => {
       const r = c.reservaciones_servicios.reservaciones;
       const p = r.pacientes;
-      const fullName = [p.nombre, p.apellido_paterno]
-        .filter(Boolean)
-        .join(' ');
+      const fullName = [p.nombre, p.apellido_paterno].filter(Boolean).join(' ');
       return {
         initials: this.initialsFor(fullName),
         folio: this.formatFolio(
@@ -199,9 +198,7 @@ export class WaitingService {
   /** SSE — cada 3s relee el estado del paciente desde la BD. */
   stream(patientId: string): Observable<{ data: WaitStatus }> {
     return interval(3000).pipe(
-      switchMap(() =>
-        from(this.current(patientId).then((data) => ({ data }))),
-      ),
+      switchMap(() => from(this.current(patientId).then((data) => ({ data })))),
     );
   }
 }

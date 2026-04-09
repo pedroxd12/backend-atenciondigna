@@ -54,10 +54,7 @@ export class AiService {
   // ──────────────────────────────────────────────
   // HTTP helper con timeout y manejo de errores
   // ──────────────────────────────────────────────
-  private async request<T>(
-    path: string,
-    init: RequestInit = {},
-  ): Promise<T> {
+  private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const url = `${this.baseUrl}${path}`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
@@ -87,7 +84,9 @@ export class AiService {
     } catch (err: unknown) {
       if (err instanceof HttpException) throw err;
       const msg = err instanceof Error ? err.message : String(err);
-      this.logger.error(`Fallo conectando con el servicio IA en ${url}: ${msg}`);
+      this.logger.error(
+        `Fallo conectando con el servicio IA en ${url}: ${msg}`,
+      );
       throw new ServiceUnavailableException(
         'Servicio IA no disponible. Intenta de nuevo en unos segundos.',
       );
@@ -155,7 +154,10 @@ export class AiService {
     });
   }
 
-  advanceClock(idSucursal: number, nowMin: number): Promise<ClinicSnapshotResponse> {
+  advanceClock(
+    idSucursal: number,
+    nowMin: number,
+  ): Promise<ClinicSnapshotResponse> {
     const qs = new URLSearchParams({
       id_sucursal: String(idSucursal),
       now_min: String(nowMin),
@@ -237,10 +239,8 @@ export class AiService {
         })),
         pacientes_activos: 0,
         espera_promedio_actual_min:
-          sat.estudios.reduce(
-            (acc, s) => acc + s.tiempo_espera_pred_min,
-            0,
-          ) / Math.max(sat.estudios.length, 1),
+          sat.estudios.reduce((acc, s) => acc + s.tiempo_espera_pred_min, 0) /
+          Math.max(sat.estudios.length, 1),
       };
     }
   }

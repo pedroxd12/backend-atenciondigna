@@ -4,7 +4,13 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import { Observable, from, interval, switchMap, distinctUntilChanged } from 'rxjs';
+import {
+  Observable,
+  from,
+  interval,
+  switchMap,
+  distinctUntilChanged,
+} from 'rxjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
 import {
@@ -65,7 +71,9 @@ export class SchedulingService {
 
   private buildPacienteContext(
     paciente: { fecha_nacimiento: Date | null },
-    extras?: { prioridad?: 'urgente' | 'cita' | 'sin_cita' } & Partial<PacienteContext>,
+    extras?: {
+      prioridad?: 'urgente' | 'cita' | 'sin_cita';
+    } & Partial<PacienteContext>,
   ): PacienteContext {
     return {
       edad: this.edadFrom(paciente.fecha_nacimiento),
@@ -160,9 +168,7 @@ export class SchedulingService {
       patientId: reservacion.id_paciente,
       branchId: reservacion.id_sucursal,
       date: reservacion.fecha_programada.toISOString().substring(0, 10),
-      time: reservacion.hora_programada
-        ?.toISOString()
-        .substring(11, 16),
+      time: reservacion.hora_programada?.toISOString().substring(11, 16),
       status: reservacion.estado,
       smartScore: slot.score,
       reason: slot.razon,
@@ -195,9 +201,7 @@ export class SchedulingService {
 
     const respuesta: RescheduleResponse = await this.ai.reschedule({
       id_sucursal: reservacion.id_sucursal,
-      fecha_actual: reservacion.fecha_programada
-        .toISOString()
-        .substring(0, 10),
+      fecha_actual: reservacion.fecha_programada.toISOString().substring(0, 10),
       hora_actual:
         this.hourFromTime(reservacion.hora_programada) ?? ahora.getUTCHours(),
       estudios: reservacion.reservaciones_servicios.map((s) => s.id_estudio),
@@ -318,13 +322,14 @@ export class SchedulingService {
           },
         });
         // Consultorios activos para este estudio
-        const consultoriosCount = await this.prisma.sucursales_consultorios.findFirst({
-          where: {
-            id_sucursal: reservacion.id_sucursal,
-            id_estudio: s.id_estudio,
-            activo: true,
-          },
-        });
+        const consultoriosCount =
+          await this.prisma.sucursales_consultorios.findFirst({
+            where: {
+              id_sucursal: reservacion.id_sucursal,
+              id_estudio: s.id_estudio,
+              activo: true,
+            },
+          });
         return {
           id_estudio: s.id_estudio,
           estado: estadoMap[s.estado] ?? 'en_espera',
@@ -430,19 +435,34 @@ export class SchedulingService {
     const fechaObj = new Date(`${params.date}T00:00:00`);
     const jsDow = fechaObj.getDay();
     const dow = (jsDow + 6) % 7;
-    const DIAS = ['lunes','martes','miercoles','jueves','viernes','sabado','domingo'];
+    const DIAS = [
+      'lunes',
+      'martes',
+      'miercoles',
+      'jueves',
+      'viernes',
+      'sabado',
+      'domingo',
+    ];
     const diaNombre = DIAS[dow];
 
     const horarioJson = sucursal.horario_semanal as
-      | Record<string, { open: number; close: number }> | null | undefined;
+      | Record<string, { open: number; close: number }>
+      | null
+      | undefined;
     const hdia = horarioJson?.[String(dow)];
-    const horaApertura = hdia?.open ?? (this.hourFromTime(sucursal.hora_apertura) ?? 6);
-    const horaCierre = hdia?.close ?? (this.hourFromTime(sucursal.hora_cierre) ?? 19);
+    const horaApertura =
+      hdia?.open ?? this.hourFromTime(sucursal.hora_apertura) ?? 6;
+    const horaCierre =
+      hdia?.close ?? this.hourFromTime(sucursal.hora_cierre) ?? 19;
 
     if (horaApertura >= horaCierre) {
       return {
-        branchId: params.branchId, date: params.date,
-        studyIds: params.studyIds, slots: [], validations: [],
+        branchId: params.branchId,
+        date: params.date,
+        studyIds: params.studyIds,
+        slots: [],
+        validations: [],
         message: `La sucursal no abre los ${diaNombre}.`,
         weeklyHours: { open: horaApertura, close: horaCierre },
       };
@@ -456,16 +476,32 @@ export class SchedulingService {
     const estudiosDB = await this.prisma.estudios.findMany({
       where: { id: { in: params.studyIds } },
     });
-    const atencionMap = new Map(estudiosDB.map(e => [e.id, e.tiempo_atencion_promedio_min ?? 10]));
-    const esperaMap = new Map(estudiosDB.map(e => [e.id, e.tiempo_espera_promedio_min ?? 20]));
-    const prepMap = new Map(estudiosDB.map(e => [e.id, e.requiere_preparacion]));
-    const tiempoAtencionTotal = params.studyIds.reduce((a, id) => a + (atencionMap.get(id) ?? 10), 0);
+    const atencionMap = new Map(
+      estudiosDB.map((e) => [e.id, e.tiempo_atencion_promedio_min ?? 10]),
+    );
+    const esperaMap = new Map(
+      estudiosDB.map((e) => [e.id, e.tiempo_espera_promedio_min ?? 20]),
+    );
+    const prepMap = new Map(
+      estudiosDB.map((e) => [e.id, e.requiere_preparacion]),
+    );
+    const tiempoAtencionTotal = params.studyIds.reduce(
+      (a, id) => a + (atencionMap.get(id) ?? 10),
+      0,
+    );
 
     // ── Orden recomendado de estudios (reglas de negocio) ──
-    const sinPrep = params.studyIds.filter(id => !prepMap.get(id));
-    const conPrep = params.studyIds.filter(id => prepMap.get(id));
+    const sinPrep = params.studyIds.filter((id) => !prepMap.get(id));
+    const conPrep = params.studyIds.filter((id) => prepMap.get(id));
     const ordenOptimo = [...sinPrep, ...conPrep];
-    const SECUENCIAS: [number, number][] = [[1,11],[1,12],[4,6],[4,24],[4,56],[2,6]];
+    const SECUENCIAS: [number, number][] = [
+      [1, 11],
+      [1, 12],
+      [4, 6],
+      [4, 24],
+      [4, 56],
+      [2, 6],
+    ];
     for (let iter = 0; iter < 8; iter++) {
       let changed = false;
       for (const [p, s] of SECUENCIAS) {
@@ -481,32 +517,48 @@ export class SchedulingService {
     }
 
     // ── Validaciones por reglas de negocio ──
-    const validaciones: Array<{ regla: string; severidad: string; mensaje: string; accion?: string }> = [];
+    const validaciones: Array<{
+      regla: string;
+      severidad: string;
+      mensaje: string;
+      accion?: string;
+    }> = [];
     for (const e of estudiosDB) {
       const n = e.nombre.toUpperCase();
       if (n.includes('MASTOGRAFIA') || n.includes('MASTOGRAFÍA')) {
         validaciones.push({
-          regla: 'mastografia.preparacion', severidad: 'info',
+          regla: 'mastografia.preparacion',
+          severidad: 'info',
           mensaje: 'No uses desodorante, talco ni cremas el dia del estudio.',
-          accion: 'Si tienes menos de 35 anos, trae orden medica de especialista.',
+          accion:
+            'Si tienes menos de 35 anos, trae orden medica de especialista.',
         });
       }
-      if (n.includes('TOMOGRAFIA') || n.includes('TOMOGRAFÍA') || n.includes('RESONANCIA')) {
+      if (
+        n.includes('TOMOGRAFIA') ||
+        n.includes('TOMOGRAFÍA') ||
+        n.includes('RESONANCIA')
+      ) {
         validaciones.push({
-          regla: 'puntualidad.estricta', severidad: 'warning',
+          regla: 'puntualidad.estricta',
+          severidad: 'warning',
           mensaje: `${e.nombre}: debes llegar puntual o se reasignara tu cita.`,
         });
       }
       if (n.includes('LABORATORIO')) {
         validaciones.push({
-          regla: 'laboratorio.ayuno', severidad: 'info',
-          mensaje: 'Requiere ayuno de 8-12 horas. Si traes orina, max 2 horas de recolectada.',
+          regla: 'laboratorio.ayuno',
+          severidad: 'info',
+          mensaje:
+            'Requiere ayuno de 8-12 horas. Si traes orina, max 2 horas de recolectada.',
         });
       }
       if (n.includes('PAPANICOLAOU')) {
         validaciones.push({
-          regla: 'papanicolaou.orden', severidad: 'info',
-          mensaje: 'Si tienes otros estudios ginecologicos, Papanicolaou va primero.',
+          regla: 'papanicolaou.orden',
+          severidad: 'info',
+          mensaje:
+            'Si tienes otros estudios ginecologicos, Papanicolaou va primero.',
         });
       }
     }
@@ -515,7 +567,7 @@ export class SchedulingService {
     const consultorios = await this.prisma.sucursales_consultorios.findMany({
       where: { id_sucursal: params.branchId, activo: true },
     });
-    const capMap = new Map(consultorios.map(c => [c.id_estudio, c.cantidad]));
+    const capMap = new Map(consultorios.map((c) => [c.id_estudio, c.cantidad]));
 
     // ── Citas registradas para ese dia ──
     const fechaStart = new Date(`${params.date}T00:00:00Z`);
@@ -532,7 +584,9 @@ export class SchedulingService {
     const cargaPorHora = new Map<number, number>();
     const cargaPorHoraEstudio = new Map<string, number>();
     for (const r of citasDelDia) {
-      const h = r.hora_programada ? new Date(r.hora_programada).getUTCHours() : 8;
+      const h = r.hora_programada
+        ? new Date(r.hora_programada).getUTCHours()
+        : 8;
       cargaPorHora.set(h, (cargaPorHora.get(h) ?? 0) + 1);
       for (const s of r.reservaciones_servicios) {
         const k = `${h}-${s.id_estudio}`;
@@ -544,16 +598,28 @@ export class SchedulingService {
     // ── Generar slots hora por hora ──
     const margen = Math.max(1, Math.ceil(tiempoAtencionTotal / 60) + 1);
     type Slot = {
-      date: string; hour: number; time: string;
-      waitMin: number; serviceMin: number; totalEstimatedMin: number;
+      date: string;
+      hour: number;
+      time: string;
+      waitMin: number;
+      serviceMin: number;
+      totalEstimatedMin: number;
       saturationLevel: 'bajo' | 'medio' | 'alto' | 'critico';
-      score: number; reason: string; orderedStudyIds: number[];
-      citasRegistradas: number; capacidadLibre: number;
-      recommended: boolean; tag: string;
+      score: number;
+      reason: string;
+      orderedStudyIds: number[];
+      citasRegistradas: number;
+      capacidadLibre: number;
+      recommended: boolean;
+      tag: string;
     };
     const allSlots: Slot[] = [];
 
-    for (let hora = Math.max(horaApertura, horaMinHoy); hora < horaCierre - margen + 1; hora++) {
+    for (
+      let hora = Math.max(horaApertura, horaMinHoy);
+      hora < horaCierre - margen + 1;
+      hora++
+    ) {
       const citasHora = cargaPorHora.get(hora) ?? 0;
 
       // Prediccion de espera por estudio
@@ -565,7 +631,9 @@ export class SchedulingService {
         try {
           const pred = await this.ai.predict({
             id_sucursal: params.branchId,
-            id_estudio: id, hora, dia_semana: dow,
+            id_estudio: id,
+            hora,
+            dia_semana: dow,
             pacientes_en_cola: colaReal,
             consultorios_activos: cap,
           });
@@ -573,7 +641,8 @@ export class SchedulingService {
           usedIA = true;
         } catch {
           const base = esperaMap.get(id) ?? 20;
-          esperaTotal += colaReal > 0 ? base * (1 + colaReal * 0.15) : base * 0.7;
+          esperaTotal +=
+            colaReal > 0 ? base * (1 + colaReal * 0.15) : base * 0.7;
         }
       }
       esperaTotal = Math.round(esperaTotal);
@@ -597,36 +666,45 @@ export class SchedulingService {
       if (capLibre > 0) razones.push('consultorios disponibles');
       if (hora >= 6 && hora < 8) razones.push('apertura');
       else if (hora >= 10 && hora <= 11) razones.push('media manana');
-      else if (hora >= 7 && hora <= 9 && citasHora > 3) razones.push('hora pico');
+      else if (hora >= 7 && hora <= 9 && citasHora > 3)
+        razones.push('hora pico');
       if (usedIA) razones.push('IA');
 
       let tag = '';
       let recommended = false;
-      if (citasHora <= 2 && nivel === 'bajo') { tag = 'Recomendado'; recommended = true; }
-      else if (citasHora <= 4 && (nivel === 'bajo' || nivel === 'medio')) { tag = 'Buena opcion'; }
-      else if (nivel === 'alto' || nivel === 'critico') { tag = 'Alta demanda'; }
+      if (citasHora <= 2 && nivel === 'bajo') {
+        tag = 'Recomendado';
+        recommended = true;
+      } else if (citasHora <= 4 && (nivel === 'bajo' || nivel === 'medio')) {
+        tag = 'Buena opcion';
+      } else if (nivel === 'alto' || nivel === 'critico') {
+        tag = 'Alta demanda';
+      }
 
       const total = esperaTotal + Math.round(tiempoAtencionTotal);
       const nivelMap = { bajo: 0, medio: 0.3, alto: 0.6, critico: 1 };
-      const score = (
+      const score =
         0.35 * (esperaTotal / 60) +
         0.25 * (citasHora / Math.max(totalCitasDia, 1)) +
-        0.20 * nivelMap[nivel] +
-        0.10 * (capLibre <= 0 ? 1 : 0) +
-        0.10 * (hora >= 7 && hora <= 9 ? 0.5 : 0)
-      );
+        0.2 * nivelMap[nivel] +
+        0.1 * (capLibre <= 0 ? 1 : 0) +
+        0.1 * (hora >= 7 && hora <= 9 ? 0.5 : 0);
 
       allSlots.push({
-        date: params.date, hour: hora,
+        date: params.date,
+        hour: hora,
         time: `${String(hora).padStart(2, '0')}:00`,
-        waitMin: esperaTotal, serviceMin: Math.round(tiempoAtencionTotal),
+        waitMin: esperaTotal,
+        serviceMin: Math.round(tiempoAtencionTotal),
         totalEstimatedMin: total,
         saturationLevel: nivel,
         score: Math.round(score * 1000) / 1000,
         reason: razones.join(' · '),
         orderedStudyIds: ordenOptimo,
-        citasRegistradas: citasHora, capacidadLibre: capLibre,
-        recommended, tag,
+        citasRegistradas: citasHora,
+        capacidadLibre: capLibre,
+        recommended,
+        tag,
       });
     }
 
@@ -643,11 +721,12 @@ export class SchedulingService {
       totalCitasDia,
       ordenRecomendado: ordenOptimo,
       source: 'smart' as const,
-      message: topSlots.length === 0
-        ? esHoy
-          ? 'Ya no hay horarios disponibles hoy. Elige otro dia.'
-          : `Sin horarios disponibles los ${diaNombre}.`
-        : undefined,
+      message:
+        topSlots.length === 0
+          ? esHoy
+            ? 'Ya no hay horarios disponibles hoy. Elige otro dia.'
+            : `Sin horarios disponibles los ${diaNombre}.`
+          : undefined,
     };
   }
 

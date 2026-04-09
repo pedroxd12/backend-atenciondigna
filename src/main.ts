@@ -31,7 +31,7 @@ async function bootstrap() {
   // no llega al contenedor (por default Nest escucha solo en localhost).
   const port = Number(process.env.PORT ?? 3000);
   await app.listen(port, '0.0.0.0');
-  // eslint-disable-next-line no-console
+
   console.log(`Backend NestJS escuchando en 0.0.0.0:${port}`);
 }
 bootstrap();

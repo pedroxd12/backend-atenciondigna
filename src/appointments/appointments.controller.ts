@@ -78,10 +78,7 @@ export class AppointmentsController {
   /** Reagenda inteligentemente una reservación existente. */
   @Post(':id/reschedule')
   @HttpCode(200)
-  reschedule(
-    @Param('id') id: string,
-    @Body() body: RescheduleAppointmentDto,
-  ) {
+  reschedule(@Param('id') id: string, @Body() body: RescheduleAppointmentDto) {
     return this.scheduling.reschedule(id, body);
   }
 

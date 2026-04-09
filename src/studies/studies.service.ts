@@ -45,9 +45,7 @@ export class StudiesService {
     });
 
     if (!reservacion) {
-      throw new NotFoundException(
-        'No se encontro reservacion activa para hoy',
-      );
+      throw new NotFoundException('No se encontro reservacion activa para hoy');
     }
 
     const idEstudios = reservacion.reservaciones_servicios.map(
@@ -82,7 +80,9 @@ export class StudiesService {
               id_reservacion: reservacion.id,
               id_estudio: p.id_estudio,
             },
-            data: { tiempo_espera_predicho_min: Math.round(p.tiempo_espera_pred_min) },
+            data: {
+              tiempo_espera_predicho_min: Math.round(p.tiempo_espera_pred_min),
+            },
           })
           .catch(() => undefined),
       ),
@@ -150,7 +150,9 @@ export class StudiesService {
    * descripcion del estudio contiene texto, se separa por puntos.
    */
   private preparationsFor(
-    estudio: { descripcion: string | null; max_vigencia_muestra_min: number | null } | undefined,
+    estudio:
+      | { descripcion: string | null; max_vigencia_muestra_min: number | null }
+      | undefined,
   ): string[] {
     if (!estudio) return [];
     const preps: string[] = [];

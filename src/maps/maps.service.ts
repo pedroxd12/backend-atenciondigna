@@ -90,7 +90,10 @@ export class MapsService {
       return Buffer.from(arrayBuffer);
     } catch (e) {
       if (e instanceof HttpException) throw e;
-      this.logger.error(`Error de red llamando a Google Static Maps`, e as Error);
+      this.logger.error(
+        `Error de red llamando a Google Static Maps`,
+        e as Error,
+      );
       throw new HttpException(
         'No se pudo conectar con Google Maps',
         HttpStatus.BAD_GATEWAY,
